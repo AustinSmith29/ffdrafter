@@ -1,6 +1,19 @@
 import re
 import math
 import random
+import copy
+
+def get_snake_picks(num_teams, rounds):
+    picks = []
+    snake = False
+    total = 0
+    for r in range(rounds):
+        order = range(num_teams) if not snake else range(num_teams)[::-1]
+        for team in order:
+            picks.append((total, team, r))
+            total += 1
+        snake = not snake
+    return picks
 
 required_pos = {
     'QB': 1,
@@ -12,17 +25,10 @@ required_pos = {
     'DST': 0,
 }
 
-def get_snake_picks(num_teams, rounds):
-    picks = []
-    snake = False
-    total = 0
-    for r in range(rounds):
-        order = range(num_teams) if not snake else range(num_teams)[::-1]
-        for team in order:
-            picks.append((total, team, round))
-            total += 1
-        snake = not snake
-    return picks
+NUM_TEAMS = 10
+ROUNDS = 8
+picks = get_snake_picks(NUM_TEAMS, ROUNDS)
+
 
 def get_draftboard():
     draftboard = {}
@@ -35,18 +41,17 @@ def get_draftboard():
                 'pos': pos,
                 'points': float(points),
                 'rank': int(rank),
-                'drafted_by': None
             }
     return draftboard
 
 def get_available_at_pos(pos, draftboard, taken):
     players = []
     for rank, player in draftboard.items():
-        if rank in taken: continue
         if player['pos'] == pos:
+            taken_ranks = map(lambda p: p['rank'], taken)
+            if rank in taken_ranks: continue
             players.append(player)
     return players
-
 
 def get_best_available_at_pos(pos, draftboard, taken):
     available = get_available_at_pos(pos, draftboard, taken)
@@ -60,14 +65,20 @@ def pick_best_player_at_pos(pos, draftboard, taken, team):
     player = get_best_available_at_pos(pos, draftboard, taken)
     if not player:
         return None
-    player['drafted_by'] = team
     return player
 
 def create_teams(num_teams):
     teams = {}
     for i in range(num_teams):
-        teams[i] = {'name': '', 'players': []}
+        teams[i] = {'name': 'Team {}'.format(i), 'players': []}
     return teams
+
+def num_of_pos_on_team(position, team):
+    n = 0
+    for player in team['players']:
+        if player['pos'] == position:
+            n += 1
+    return n
 
 def calculate_ucb(node):
     if node.visited == 0:
@@ -76,29 +87,25 @@ def calculate_ucb(node):
     return vi + (2 * math.sqrt(math.log(node.parent.visited) / node.visited))
 
 class Node:
-    def __init__(self, draftboard, taken, pick, parent):
-        qb = pick_best_player_at_pos('QB', draftboard, taken, team)
-        rb = pick_best_player_at_pos('RB', draftboard, taken, team)
-        wr = pick_best_player_at_pos('WR', draftboard, taken, team)
-        te = pick_best_player_at_pos('TE', draftboard, taken, team)
-        flex = max([rb, wr, te], key=lambda x: x['points'])
-        k = pick_best_player_at_pos('K', draftboard, taken, team)
-        dst = pick_best_player_at_pos('DST', draftboard, taken, team)
+    def __init__(self, taken, parent, pick, teams):
+        self.children = []
         self.score = 0
         self.visited = 0
-        self.taken = []
-        self.team = team
-        self.team_rosters = {} 
+        self.taken = taken
+        self.pick = pick
         self.parent = parent
-        self.children = [
-            Node(draftboard, self.taken + [qb], next_pick, parent),
-            Node(draftboard, self.taken + [rb], next_pick, parent),
-            Node(draftboard, self.taken + [wr], next_pick, parent),
-            Node(draftboard, self.taken + [te], next_pick, parent),
-            Node(draftboard, self.taken + [flex], next_pick, parent),
-            Node(draftboard, self.taken + [k], next_pick, parent),
-            Node(draftboard, self.taken + [dst], next_pick, parent),
-        ]
+        self.teams = copy.deepcopy(teams)
+
+    def expand_children(self, draftboard):
+        pick_number, team, _ = self.pick
+        for pos in ['QB', 'RB', 'WR', 'TE', 'K', 'DST']:
+            if num_of_pos_on_team(pos, self.teams[team]) == required_pos[pos]:
+                continue
+            player = pick_best_player_at_pos(pos, draftboard, self.taken, team)
+            if player:
+                next_pick = picks[pick_number + 1]
+                self.teams[team]['players'].append(player)
+                self.children.append(Node(self.taken + [player], self, next_pick, teams))
 
 def is_terminal(node):
     for team in node.team_rosters:
@@ -110,20 +117,25 @@ def is_terminal(node):
     return True
 
 def rollout(node, draftboard):
-    picks = get_snake_picks(10, 8)
     last_pick = picks[-1][0]
     reward = 0
-    simming_team = node.team
+    simming_team = node.pick[1]
     team = simming_team
-    while node.pick <= last_pick: 
-        picking_team = picks[node.pick][1]
-        player = random.choice(node.children)
+    while node.pick[0] <= last_pick-1: 
+        node.expand_children(draftboard)
+        if not node.children:
+            break
+        picking_team = node.pick[1]
+        choice = random.choice(node.children)
+        player = choice.taken[-1]
         if picking_team == simming_team:
-            reward += player.points
-        node = Node(draftboard, node.taken + [player], node.pick+1, node)
+            reward += player['points']
+        node = Node(node.taken + [player], node, picks[node.pick[0]+1], node.teams)
     return reward
 
 def choose_child(children):
+    chosen_node = None
+    max_usb = 0
     for child in children:
         ucb = calculate_ucb(child)
         if not ucb:
@@ -138,24 +150,48 @@ def choose_child(children):
 def backpropogate_value(node, value):
     if not node:
         return
-    if value > node.value:
-        node.value = value
+    if value > node.score:
+        node.score = value
         backpropogate_value(node.parent, value)
 
+def is_leaf(node):
+    return not (True in list(map(lambda x: True if x.visited > 0 else False, node.children)))
+
+def print_team(team):
+    print (team)
+
 if __name__ == '__main__':
-    NUM_TEAMS = 10
-    ITERATIONS = 1000
     draftboard = get_draftboard()
     teams = create_teams(NUM_TEAMS)
-    picks = get_snake_picks(NUM_TEAMS, 8)
-    # print (picks)
-    node = Node(draftboard, [], picks[0][0], None)
-    for i in range(ITERATIONS):
-        node_to_explore = choose_child(node.children)
-        if is_leaf(node_to_explore):
-            rollout_value = rollout(node_to_explore, draftboard)
-            backpropogate_value(node_to_explore, rollout_value)
-        else:
-            # Add new child node with populated actions
-            # and then roll out from it
-            pass
+    taken = []
+    for x in range(len(picks)-1):
+        sim_pick = x
+        root = Node(taken, None, picks[sim_pick], teams)
+        root.visited = 1
+        root.expand_children(draftboard)
+        current_node = root
+        for i in range(10000):
+            node_to_explore = choose_child(current_node.children)
+            if is_leaf(node_to_explore):
+                if node_to_explore.visited == 0:
+                    rollout_value = rollout(node_to_explore, draftboard)
+                    backpropogate_value(node_to_explore.parent, rollout_value)
+                    node_to_explore.visited += 1
+                else:
+                    if not sim_pick < len(picks)-2: continue
+                    new_node = Node(node_to_explore.taken, node_to_explore, picks[sim_pick + 1], teams)
+                    new_node.expand_children(draftboard)
+                    node_to_explore = new_node
+                    sim_pick += 1
+            else:
+                current_node = node_to_explore
+        # Make pick
+        choose_node = choose_child(root.children)
+        player = choose_node.taken[-1]
+        taken.append(player)
+        _, team, _round = picks[x]
+        teams[team]['players'].append(player)
+        print ("Round {}: Team {} picks {} {}".format(_round, team, player['name'], player['pos']))
+
+    for team, value in teams.items():
+        print ('Team {}: {}'.format(team, value['players']))
