@@ -20,15 +20,14 @@ required_pos = {
     'RB': 2,
     'WR': 2,
     'TE': 1,
-    'FLEX': 2,
+    #'FLEX': 2,
     'K': 0,
     'DST': 0,
 }
 
 NUM_TEAMS = 10
-ROUNDS = 8
+ROUNDS = 6
 picks = get_snake_picks(NUM_TEAMS, ROUNDS)
-
 
 def get_draftboard():
     draftboard = {}
@@ -47,7 +46,7 @@ def get_draftboard():
 def get_available_at_pos(pos, draftboard, taken):
     players = []
     for rank, player in draftboard.items():
-        if player['pos'] == pos:
+        if player['pos'] == pos or (pos == 'FLEX' and (player['pos'] == 'WR' or player['pos'] == 'RB')):
             taken_ranks = map(lambda p: p['rank'], taken)
             if rank in taken_ranks: continue
             players.append(player)
@@ -104,7 +103,6 @@ class Node:
             player = pick_best_player_at_pos(pos, draftboard, self.taken, team)
             if player:
                 next_pick = picks[pick_number + 1]
-                self.teams[team]['players'].append(player)
                 self.children.append(Node(self.taken + [player], self, next_pick, teams))
 
 def is_terminal(node):
@@ -118,7 +116,7 @@ def is_terminal(node):
 
 def rollout(node, draftboard):
     last_pick = picks[-1][0]
-    reward = 0
+    reward = node.score
     simming_team = node.pick[1]
     team = simming_team
     while node.pick[0] <= last_pick-1: 
@@ -138,7 +136,7 @@ def choose_child(children):
     max_usb = 0
     for child in children:
         ucb = calculate_ucb(child)
-        if not ucb:
+        if ucb == None:
             chosen_node = child
             break
         else:
@@ -170,24 +168,27 @@ if __name__ == '__main__':
         root.visited = 1
         root.expand_children(draftboard)
         current_node = root
-        for i in range(10000):
+        for i in range(10000000):
             node_to_explore = choose_child(current_node.children)
+            if not node_to_explore: 
+                node_to_explore = root
             if is_leaf(node_to_explore):
                 if node_to_explore.visited == 0:
-                    rollout_value = rollout(node_to_explore, draftboard)
-                    backpropogate_value(node_to_explore.parent, rollout_value)
+                    rollout_node = copy.deepcopy(node_to_explore)
+                    rollout_value = rollout(rollout_node, draftboard)
+                    backpropogate_value(node_to_explore, rollout_value)
                     node_to_explore.visited += 1
+                    current_node = root
                 else:
                     if not sim_pick < len(picks)-2: continue
                     new_node = Node(node_to_explore.taken, node_to_explore, picks[sim_pick + 1], teams)
                     new_node.expand_children(draftboard)
-                    node_to_explore = new_node
+                    current_node = new_node
                     sim_pick += 1
             else:
                 current_node = node_to_explore
         # Make pick
-        choose_node = choose_child(root.children)
-        player = choose_node.taken[-1]
+        player = sorted(root.children, key=lambda x: x.score)[-1].taken[-1]
         taken.append(player)
         _, team, _round = picks[x]
         teams[team]['players'].append(player)
