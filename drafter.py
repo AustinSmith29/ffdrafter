@@ -20,27 +20,29 @@ required_pos = {
     'RB': 2,
     'WR': 2,
     'TE': 1,
-    #'FLEX': 2,
+    'FLEX': 2,
     'K': 0,
     'DST': 0,
 }
 
 NUM_TEAMS = 10
-ROUNDS = 6
+ROUNDS = 8
 picks = get_snake_picks(NUM_TEAMS, ROUNDS)
 
 def get_draftboard():
     draftboard = {}
     with open('projections_2021.csv') as f:
+        i = 0
         for line in f:
-            rank, name, pos, points = line.strip().split(',')
+            name, pos, points = line.strip().split(',')
             pos = re.match('[A-Z]+', pos).group()
-            draftboard[int(rank)] = {
+            draftboard[i] = {
                 'name': name,
                 'pos': pos,
                 'points': float(points),
-                'rank': int(rank),
+                'rank': i
             }
+            i += 1
     return draftboard
 
 def get_available_at_pos(pos, draftboard, taken):
