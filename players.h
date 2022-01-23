@@ -1,3 +1,6 @@
+#ifndef PLAYERS_H
+#define PLAYERS_H
+
 #define QB   0
 #define RB   1
 #define WR   2
@@ -27,3 +30,5 @@ const PlayerRecord* whos_highest_projected(char position, unsigned int taken[]);
 const PlayerRecord* players_begin();
 const PlayerRecord* players_end();
 const PlayerRecord* players_next();
+
+#endif

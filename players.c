@@ -50,12 +50,13 @@ int load_players(const char* csv_file)
     }
 
     fclose(fp);
+    return 0;
 }
 
 void unload_players()
 {
-    PlayerRecord* player;
-    for (player = players_begin(); player != players_end(); player = players_next())
+    const PlayerRecord* player = players_begin();
+    for (; player != players_end(); player = players_next())
     {
         free(player->name);
     }

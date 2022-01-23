@@ -1,3 +1,6 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 // DRAFT CONFIGURATION CONSTANTS (edit this and recompile to change settings)
 // =================================================================================================
 const char* PLAYER_CSV_LIST = "projections_2021.csv"; // file that has Player Names, Positions, and Projected Points
@@ -18,7 +21,7 @@ const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
 //  {Team Name, Controller}
     {"Nick Scardina", "AI"},
     {"Connor Hetterich", "AI"},
-    {"Richard Kroupa", "AI"}
+    {"Richard Kroupa", "AI"},
     {"Matt Everhart", "AI"},
     {"Austin Smith", "AI"},
     {"Christian Photos", "AI"},
@@ -29,3 +32,5 @@ const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
     {"Steven Sbash", "AI"},
     {"Cameron Urfer", "AI"}
 };
+
+#endif

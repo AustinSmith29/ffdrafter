@@ -1,2 +1,2 @@
 all:
-	gcc -Wall -g -o draftbot drafter.c players.c
+	gcc -Wall -g -o draftbot main.c drafter.c players.c

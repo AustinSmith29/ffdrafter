@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "players.h"
+#include "drafter.h"
 
 int main(int argc, char *argv[])
 {
@@ -30,11 +31,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    PlayerRecord* player;
-    for (player = players_begin(); player != players_end(); player = players_next())
-    {
-        printf("%s\t%d\t%f\n", player->name, player->position, player->projected_points);
-    }
+    printf("Starting timer\n");
+    const PlayerRecord* player = calculate_best_pick(5, NULL);
+    printf("Done\n");
     
+    unload_players();
     return 0;
 }
