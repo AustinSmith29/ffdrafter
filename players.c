@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "config.h"
 #include "players.h"
 
 #define MAX_PLAYERS 1800 // little more than # of players on active NFL rosters (1696)
@@ -35,7 +36,7 @@ int load_players(const char* csv_file)
         if (position < 0)
             return -1;
 
-        char* heap_name = malloc(strlen(name + 1));
+        char* heap_name = malloc(strlen(name) + 1);
         if (!heap_name)
             return -1;
         strcpy(heap_name, name);
@@ -81,9 +82,33 @@ int codify_position_str(const char* position_str)
         return -1;
 }
 
-const PlayerRecord* whos_highest_projected(char position, unsigned int taken[])
+int is_taken(int player_id, Taken taken[], int passed_picks)
 {
+	for (int i = 0; i < passed_picks; i++)
+	{
+		if (taken[i].player_id == player_id) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks)
+{
+	PlayerRecord* player = players_begin();
+	for (; player != players_end(); player = players_next()) 
+	{
+		if (player->position == position && !is_taken(player->id, taken, passed_picks))
+		{
+			return player;
+		}
+	}
     return NULL;
+}
+
+const PlayerRecord* get_player_by_id(unsigned int player_id)
+{
+	return &players[player_id];
 }
 
 static int iterator_counter = 0;

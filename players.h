@@ -9,6 +9,8 @@
 #define DST  5
 #define FLEX 6
 
+#define NUM_POSITIONS 7
+
 typedef struct PlayerRecord {
 	unsigned int id;
 	double projected_points;
@@ -22,9 +24,18 @@ int load_players(const char* csv_file);
 
 void unload_players();
 
+typedef struct Taken {
+	unsigned int player_id;
+	unsigned int by_team; // index into DRAFT_ORDER array in config.h
+} Taken;
+
+int is_taken(int player_id, Taken taken[], int passed_picks);
+
 // Gets record of the player with the highest projected points at the given position who's id is NOT in
 // the taken list.
-const PlayerRecord* whos_highest_projected(char position, unsigned int taken[]);
+const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks);
+
+const PlayerRecord* get_player_by_id(unsigned int player_id);
 
 // Constant Iterators
 const PlayerRecord* players_begin();
