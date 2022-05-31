@@ -95,7 +95,7 @@ int is_taken(int player_id, Taken taken[], int passed_picks)
 
 const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks)
 {
-	PlayerRecord* player = players_begin();
+	const PlayerRecord* player = players_begin();
 	for (; player != players_end(); player = players_next()) 
 	{
 		if (player->position == position && !is_taken(player->id, taken, passed_picks))
@@ -109,6 +109,19 @@ const PlayerRecord* whos_highest_projected(int position, Taken taken[], int pass
 const PlayerRecord* get_player_by_id(unsigned int player_id)
 {
 	return &players[player_id];
+}
+
+const PlayerRecord* get_player_by_name(const char* name)
+{
+	const PlayerRecord* player = players_begin();
+	for (; player != players_end(); player = players_next()) 
+	{
+		if (strcmp(player->name, name) == 0)
+		{
+			return player;
+		}
+	}
+    return NULL;
 }
 
 static int iterator_counter = 0;

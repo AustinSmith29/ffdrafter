@@ -26,22 +26,9 @@
 // Sets order of first round of draft. Subsequent rounds are determined via snake draft.
 // If you want the computer to make the optimal pick for this player, set the Controller as "AI".
 // If the user wants to make the pick for that player, set the Controller as "HUMAN".
-const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2];
-/*
-const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
-//  {Team Name, Controller}
-    {"Nick Scardina", "AI"},
-    {"Connor Hetterich", "AI"},
-    {"Richard Kroupa", "AI"},
-    {"Matt Everhart", "AI"},
-    {"Austin Smith", "AI"},
-    {"Christian Photos", "AI"},
-    {"Daniel Rocco", "AI"},
-    {"Alex Scardina", "AI"},
-    {"Tyler Strong", "AI"},
-    {"Liam Bramley", "AI"},
-    {"Steven Sbash", "AI"},
-    {"Cameron Urfer", "AI"}
-};
-*/
+extern const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2];
+int team_with_pick(int pick);
+
+void draftbot_initialize();
+void draftbot_destroy();
 #endif

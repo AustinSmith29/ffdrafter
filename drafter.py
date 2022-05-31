@@ -2,6 +2,7 @@ import re
 import math
 import random
 import copy
+import time
 
 def get_snake_picks(num_teams, rounds):
     picks = []
@@ -25,7 +26,7 @@ required_pos = {
     'DST': 0,
 }
 
-NUM_TEAMS = 10
+NUM_TEAMS = 12
 ROUNDS = 8
 picks = get_snake_picks(NUM_TEAMS, ROUNDS)
 
@@ -164,13 +165,15 @@ if __name__ == '__main__':
     draftboard = get_draftboard()
     teams = create_teams(NUM_TEAMS)
     taken = []
+    SECONDS_PER_PICK = 30 
     for x in range(len(picks)-1):
         sim_pick = x
         root = Node(taken, None, picks[sim_pick], teams)
         root.visited = 1
         root.expand_children(draftboard)
         current_node = root
-        for i in range(10000000):
+        start_time = time.time()
+        while time.time() - start_time < SECONDS_PER_PICK:
             node_to_explore = choose_child(current_node.children)
             if not node_to_explore: 
                 node_to_explore = root

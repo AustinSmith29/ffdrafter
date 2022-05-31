@@ -36,6 +36,7 @@ int is_taken(int player_id, Taken taken[], int passed_picks);
 const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks);
 
 const PlayerRecord* get_player_by_id(unsigned int player_id);
+const PlayerRecord* get_player_by_name(const char* name);
 
 // Constant Iterators
 const PlayerRecord* players_begin();

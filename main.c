@@ -1,5 +1,6 @@
 //#include <ncurses.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "players.h"
@@ -28,10 +29,7 @@ int main(int argc, char *argv[])
     endwin();
     */
 
-    if (load_players("projections_2021.csv") < 0) {
-        printf("Could not load players!\n");
-        return 1;
-    }
+	draftbot_initialize();
 
 	Taken taken[NUMBER_OF_PICKS];
 
@@ -49,27 +47,56 @@ int main(int argc, char *argv[])
 
 	memset(taken, 0, NUMBER_OF_PICKS * sizeof(Taken));
 
-	for (int i = 0; i < NUMBER_OF_PICKS; i++) {
-		const PlayerRecord* player = calculate_best_pick(10, i, taken);
-		taken[i].player_id = player->id;
-		taken[i].by_team = i % NUMBER_OF_TEAMS;
-		printf("Team %d Picked %s\n", taken[i].by_team, player->name);
+	double team_points[NUMBER_OF_TEAMS];
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++) { team_points[i] = 0.0; }
 
-		if ((player->position == RB || player->position == WR) && (still_required[i % NUMBER_OF_TEAMS][FLEX] > 0)) {
-			still_required[i % NUMBER_OF_TEAMS][FLEX]--;
+	for (int i = 0; i < NUMBER_OF_PICKS; i++) {
+		int team = team_with_pick(i);
+		const PlayerRecord* player = NULL;
+		if (strcmp(DRAFT_ORDER[team][1], "Human") == 0) 
+		{
+			while (player == NULL)
+			{
+				printf("Who did %s pick? ", DRAFT_ORDER[team][0]);
+				char name[50];
+				gets(name); // TODO: I know its unsafe... but this is just a test.
+				player = get_player_by_name(name);
+			}
+		}
+		else 
+		{
+			player = calculate_best_pick(10, i, taken);
+		}
+		taken[i].player_id = player->id;
+		taken[i].by_team = team;
+		team_points[team] += player->projected_points;
+		printf("Round %d Team %s Picked %s\n", 
+				NUMBER_OF_PICKS % NUMBER_OF_TEAMS, 
+				DRAFT_ORDER[taken[i].by_team][0], 
+				player->name
+		);
+
+		if ((player->position == RB || player->position == WR) && (still_required[team][FLEX] > 0)) {
+			still_required[team][FLEX]--;
 		}
 		else {
-			still_required[i % NUMBER_OF_TEAMS][player->position]--;
+			still_required[team][player->position]--;
 		}
-		if (still_required[i % NUMBER_OF_TEAMS][player->position] < 0) {
+		if (still_required[team][player->position] < 0) {
 			printf("Error\n");
 			for (int j = 0; j < 7; j++) {
-				printf("%d ", still_required[i % NUMBER_OF_TEAMS][j]);
+				printf("%d ", still_required[team][j]);
 			}
 			printf("\n");
 		}
 	}
+
+	printf("\nDraft Completed!\n\nProjected Totals: \n");
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
+	{
+		printf("Team %s: %f \n", DRAFT_ORDER[taken[i].by_team][0], team_points[i]);
+	}
     
-    unload_players();
+	draftbot_destroy();
     return 0;
 }

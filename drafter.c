@@ -9,8 +9,6 @@
 #include "drafter.h"
 #include "config.h"
 
-#define TEAM_WITH_PICK(pick) ( (pick) % (NUMBER_OF_TEAMS) )
-
 typedef struct Node
 {
     int visited;
@@ -94,7 +92,7 @@ static void backpropogate_score(Node* node, double score);
 
 static void make_pick(SearchContext* context, const PlayerRecord* player)
 {
-	int team = TEAM_WITH_PICK(context->pick);
+	int team = team_with_pick(context->pick);
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
 
@@ -108,7 +106,7 @@ static void make_pick(SearchContext* context, const PlayerRecord* player)
 }
 
 
-int drafting_team = 0;
+// int drafting_team = 0;
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
 //
@@ -126,7 +124,7 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	// actual taken players outside of this function.
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
-	drafting_team = TEAM_WITH_PICK(pick);
+	//drafting_team = team_with_pick(pick);
 
     Node* root = create_node(NULL, NULL);
 	expand_tree(root, current_context->taken, pick);
@@ -273,12 +271,12 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 
 	// Assume pick from from_node happened and sim remaining rounds
 	make_pick(sim_search_context, from_node->chosen_player);
-	if (sim_search_context->team_requirements[TEAM_WITH_PICK(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0) 
+	if (sim_search_context->team_requirements[team_with_pick(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0) 
 		return -10000000;
 	sim_search_context->pick++; // Valid pick... advance pick number and sim
 
 	double score = from_node->score + from_node->chosen_player->projected_points;
-	//unsigned int drafting_team = TEAM_WITH_PICK(context->pick);
+	unsigned int drafting_team = team_with_pick(context->pick);
 
 	while (sim_search_context->pick < NUMBER_OF_PICKS-1)
 	{
@@ -289,7 +287,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 
 		// Only count score for every cycle of picks so
 		// we add up score of a single team.
-		if (TEAM_WITH_PICK(sim_search_context->pick) == drafting_team) {
+		if (team_with_pick(sim_search_context->pick) == drafting_team) {
 			score += player->projected_points;
 		}
 
@@ -303,7 +301,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 const PlayerRecord* sim_pick_for_team(const SearchContext* context)
 {
 	Taken* sim_taken = context->taken;
-	int* const still_required = context->team_requirements[TEAM_WITH_PICK(context->pick)].still_required;
+	int* const still_required = context->team_requirements[team_with_pick(context->pick)].still_required;
 
 	int still_needed = 0;
 	for (int i = 0; i < NUM_POSITIONS; i++)
