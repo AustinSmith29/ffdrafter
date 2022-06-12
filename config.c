@@ -3,18 +3,18 @@
 
 const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
 //  {Team Name, Controller}
-    {"Nick Scardina", "Human"},
-    {"Connor Hetterich", "Human"},
-    {"Richard Kroupa", "Human"},
-    {"Matt Everhart", "Human"},
+    {"Nick Scardina", "AI"},
+    {"Connor Hetterich", "AI"},
+    {"Richard Kroupa", "AI"},
+    {"Matt Everhart", "AI"},
     {"Austin Smith", "AI"},
-    {"Christian Photos", "Human"},
-    {"Daniel Rocco", "Human"},
-    {"Alex Scardina", "Human"},
-    {"Tyler Strong", "Human"},
-    {"Liam Bramley", "Human"},
-    {"Steven Sbash", "Human"},
-    {"Cameron Urfer", "Human"}
+    {"Christian Photos", "AI"},
+    {"Daniel Rocco", "AI"},
+    {"Alex Scardina", "AI"},
+    {"Tyler Strong", "AI"},
+    {"Liam Bramley", "AI"},
+    {"Steven Sbash", "AI"},
+    {"Cameron Urfer", "AI"}
 };
 
 static int SNAKE_DRAFT[NUMBER_OF_PICKS];

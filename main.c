@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 		}
 		else 
 		{
-			player = calculate_best_pick(10, i, taken);
+			player = calculate_best_pick(5, i, taken);
 		}
 		taken[i].player_id = player->id;
 		taken[i].by_team = team;
