@@ -29,11 +29,11 @@ typedef struct Taken {
 	unsigned int by_team; // index into DRAFT_ORDER array in config.h
 } Taken;
 
-int is_taken(int player_id, Taken taken[], int passed_picks);
+int is_taken(int player_id, const Taken taken[], int passed_picks);
 
 // Gets record of the player with the highest projected points at the given position who's id is NOT in
 // the taken list.
-const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks);
+const PlayerRecord* whos_highest_projected(int position, const Taken taken[], int passed_picks);
 
 const PlayerRecord* get_player_by_id(unsigned int player_id);
 const PlayerRecord* get_player_by_name(const char* name);

@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "config.h"
 #include "players.h"
 

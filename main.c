@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 	double team_points[NUMBER_OF_TEAMS];
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++) { team_points[i] = 0.0; }
 
-	for (int i = 0; i < NUMBER_OF_PICKS; i++) {
+	for (int i = 0; i < 12; i++)
+    {
 		int team = team_with_pick(i);
 		const PlayerRecord* player = NULL;
 		if (strcmp(DRAFT_ORDER[team][1], "Human") == 0) 
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
 			{
 				printf("Who did %s pick? ", DRAFT_ORDER[team][0]);
 				char name[50];
-				gets(name); // TODO: I know its unsafe... but this is just a test.
+				fgets(name, 50, stdin);
 				player = get_player_by_name(name);
 			}
 		}
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
 			}
 			printf("\n");
 		}
+        free((PlayerRecord*)player);
 	}
 
 	printf("\nDraft Completed!\n\nProjected Totals: \n");

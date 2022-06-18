@@ -18,7 +18,7 @@ typedef struct Node
 	struct Node* children[NUM_POSITIONS];
 } Node;
 
-static Node* create_node(Node* parent, const struct PlayerRecord* chosen_player);
+static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player);
 static void free_node(Node *node);
 
 typedef struct PositionRequirements {
@@ -82,11 +82,11 @@ static void destroy_search_context(SearchContext* context)
 }
 
 static void reset_search_context_to(const SearchContext* original, SearchContext* delta);
-static Node* select_child(const Node* parent, int team);
+static Node* select_child(const Node* const parent, int team);
 static bool is_leaf(const Node* node);
-static void expand_tree(Node* node, const SearchContext* context);
+static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
-static const PlayerRecord* sim_pick_for_team(const SearchContext* context);
+static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
 
 static void make_pick(SearchContext* context, const PlayerRecord* player)
@@ -115,7 +115,9 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	srand(time(NULL));
     clock_t start_time_s = clock() / CLOCKS_PER_SEC;
     if (start_time_s < 0)
+    {
         return NULL;
+    }
 
 	// Reflects the real state of the draft i.e Actual current pick in the draft and
 	// actual taken players outside of this function.
@@ -168,7 +170,7 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 
 	// Destroying context removes node so we have to copy which player
 	// it would have taken.
-	const PlayerRecord* chosen_player = malloc(sizeof(PlayerRecord));
+	PlayerRecord* const chosen_player = malloc(sizeof(PlayerRecord));
 	double max = 0.0;
 	int child = 0;
 	int team = team_with_pick(pick);
@@ -199,14 +201,14 @@ void reset_search_context_to(const SearchContext* original, SearchContext* delta
 }
 
 static double calculate_ucb(const Node* node, int team);
-Node* select_child(const Node* parent, int team)
+Node* select_child(const Node* const parent, int team)
 {
 	assert(parent != NULL);
 	Node* max_score_node = NULL;
 	double max_score = 0.0;
 	for (int i = 0; i < NUM_POSITIONS; i++) 
 	{
-		const Node* child = parent->children[i];
+		Node* child = parent->children[i];
 		if (!child) 
 			continue;
 
@@ -245,7 +247,7 @@ bool is_leaf(const Node* node)
 	return node->visited == 0;
 }
 
-void expand_tree(Node* node, const SearchContext* context)
+void expand_tree(Node* const node, const SearchContext* const context)
 {
 	assert(node != NULL);
 	const int* requirements = context->team_requirements[team_with_pick(context->pick)].still_required;
@@ -268,24 +270,8 @@ void expand_tree(Node* node, const SearchContext* context)
 	const PlayerRecord* dst = whos_highest_projected(DST, context->taken, context->pick);	
 	node->children[DST] = (dst != NULL && requirements[DST] > 0) ? create_node(node, dst) : NULL;
 
-	const PlayerRecord* flex;
-	if (wr && !rb)
-	{
-		flex = wr;
-	}
-	else if (rb && !wr)
-	{
-		flex = rb;
-	}
-	else if (!rb && !wr)
-	{
-		flex = NULL;
-	}
-	else 
-	{
-		flex = (rb->projected_points >= wr->projected_points) ? rb : wr;	
-	}
-	node->children[FLEX] = (flex != NULL && requirements[FLEX] > 0) ? create_node(node, flex) : NULL;
+	const PlayerRecord* flex = whos_highest_projected(FLEX, context->taken, context->pick);
+    node->children[FLEX] = (flex != NULL && requirements[FLEX] > 0) ? create_node(node, flex) : NULL;
 }
 
 double simulate_score(const SearchContext* context, const Node* from_node)
@@ -333,10 +319,10 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 	return score;
 }
 
-const PlayerRecord* sim_pick_for_team(const SearchContext* context)
+const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 {
-	Taken* sim_taken = context->taken;
-	int* const still_required = context->team_requirements[team_with_pick(context->pick)].still_required;
+	const Taken* const sim_taken = context->taken;
+	const int* const still_required = context->team_requirements[team_with_pick(context->pick)].still_required;
 
 	int still_needed = 0;
 	for (int i = 0; i < NUM_POSITIONS; i++)
@@ -360,25 +346,14 @@ const PlayerRecord* sim_pick_for_team(const SearchContext* context)
 
 	const PlayerRecord* list[] = {qb, rb, wr, te, k, dst, flex};
 
-	int randIndex = random() % NUM_POSITIONS;
 	// Kinda hacky way to do this but it'll work for now I think.
 	// Might have to add filtering do the list to exclude positions
 	// that have no available players left or that are unneeded by
 	// the team.
-	int failsafe = 0;
+	int randIndex = random() % NUM_POSITIONS;
 	while (list[randIndex] == NULL || still_required[list[randIndex]->position] <= 0) 
 	{
 		randIndex = random() % NUM_POSITIONS;
-		failsafe++;
-		if (failsafe > 1000) {
-			printf("Spinning... still_needed=%d\n", still_needed);
-		}
-	}
-
-	// TEST: So this looks like this assert never gets triggered... so how tf
-	// are we still drafting qb's if we are never picking qbs in sim?
-	if (still_required[QB] == 0 && list[randIndex]->position == QB) {
-		assert(list[randIndex]->position != QB);
 	}
 
 	return list[randIndex];
@@ -408,7 +383,7 @@ void backpropogate_score(Node* node, double score, int team)
 	backpropogate_score(node->parent, score, team);
 }
 
-Node* create_node(Node* parent, const struct PlayerRecord* chosen_player)
+static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player)
 {
     Node* node = malloc(sizeof(Node));
     
@@ -423,18 +398,20 @@ Node* create_node(Node* parent, const struct PlayerRecord* chosen_player)
     return node;
 }
 
-free_node(Node* node)
+static void free_node(Node* node)
 {
 	if (!node)
 		return;
+    node->parent = NULL;
     free_node(node->children[QB]);
     free_node(node->children[RB]);
     free_node(node->children[WR]);
     free_node(node->children[TE]);
     free_node(node->children[K]);
     free_node(node->children[DST]);
+    free_node(node->children[FLEX]);
     node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
-						 node->children[K] = node->children[DST] = NULL;
+						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
 
     free(node);
     node = NULL;
