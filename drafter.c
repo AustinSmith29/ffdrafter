@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
@@ -88,6 +89,8 @@ static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
 static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
+static void debug_dump_branch(const Node* node);
+static void debug_dump_taken(const Taken* taken, int passed_picks);
 
 static void make_pick(SearchContext* context, const PlayerRecord* player)
 {
@@ -102,6 +105,7 @@ static void make_pick(SearchContext* context, const PlayerRecord* player)
 	else {
 		context->team_requirements[team].still_required[player->position]--;
 	}
+    context->pick++;
 }
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
@@ -125,46 +129,42 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	SearchContext* current_context = create_search_context(pick, taken);
 
     Node* root = create_node(NULL, NULL);
-	expand_tree(root, current_context);
 
 	MASTER_CONTEXT->node = root;
 	current_context->node = root;
+    int max_depth = 0;
     while ( (clock() / CLOCKS_PER_SEC) - start_time_s < thinking_time )
     {
-        Node* node = select_child(current_context->node, team_with_pick(current_context->pick));
-		// I think we hit this state when we have expanded to a terminal state so I think we can
-		// just reset the search context and continue with algorithm.
-		if (!node || current_context->pick >= NUMBER_OF_PICKS) {
-			reset_search_context_to(MASTER_CONTEXT, current_context);
-			continue;
-		}
-
-        if (is_leaf(node)) {
-			current_context->pick++;
+        Node* node = current_context->node;
+        if (node->parent != NULL)
+        {
+            make_pick(current_context, node->chosen_player);
+            node->visited++;
+        }
+        if (is_leaf(node))
+        {
             expand_tree(node, current_context);
-			current_context->pick--;
-            double score = simulate_score(current_context, node);
-            backpropogate_score(node, score, team_with_pick(current_context->pick)); // Also increments node's "visited" member as score propogates
+            if (node->parent != NULL) // We don't calculate score for root
+            {
+                double score = simulate_score(current_context, node);
+                //debug_dump_branch(node);
+                //debug_dump_taken(current_context->taken, current_context->pick);
+                //printf("\n");
+                if (current_context->pick > max_depth)
+                {
+                    max_depth = current_context->pick;
+                }
+                backpropogate_score(node, score, team_with_pick(current_context->pick)); // Also increments node's "visited" member as score propogates
+            }
 			reset_search_context_to(MASTER_CONTEXT, current_context);
         }
-        else 
-		{
-			// We move down the tree, so we are exploring a branch where we
-			// theoretically draft the player at node, so we have to update
-			// the current search context
-			node->visited++;
+        else
+        {
+            if (is_leaf(node))
+            {
+                printf("Ahhh!\n");
+            }
             current_context->node = select_child(node, team_with_pick(current_context->pick));
-			// TODO: Investigate WHY this is happening rather than do this hacky solution
-			if (!current_context->node)
-			{
-				reset_search_context_to(MASTER_CONTEXT, current_context);
-				continue;
-			}
-			if (is_leaf(current_context->node)) {
-				current_context->node = node;
-			}
-			make_pick(current_context, node->chosen_player);
-			current_context->pick++;
         }
     } 
 
@@ -188,6 +188,8 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	destroy_search_context(current_context);
 
 	free_node(root);
+
+    printf("Finished with search depth of %d\n", max_depth);
 
     return chosen_player;
 }
@@ -244,49 +246,59 @@ double calculate_ucb(const Node* node, int team)
 bool is_leaf(const Node* node)
 {
 	assert(node != NULL);
-	return node->visited == 0;
+    for (int i = 0; i < NUM_POSITIONS; i++)
+    {
+        if (node->children[i])
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void expand_tree(Node* const node, const SearchContext* const context)
 {
 	assert(node != NULL);
-	const int* requirements = context->team_requirements[team_with_pick(context->pick)].still_required;
+    int pick = context->pick;
+	const int* requirements = context->team_requirements[team_with_pick(pick)].still_required;
 
-	const PlayerRecord* qb = whos_highest_projected(QB, context->taken, context->pick);	
+	const PlayerRecord* qb = whos_highest_projected(QB, context->taken, pick);	
 	node->children[QB] = (qb != NULL && requirements[QB] > 0) ? create_node(node, qb) : NULL;
 
-	const PlayerRecord* rb = whos_highest_projected(RB, context->taken, context->pick);	
+	const PlayerRecord* rb = whos_highest_projected(RB, context->taken, pick);	
 	node->children[RB] = (rb != NULL && requirements[RB] > 0) ? create_node(node, rb) : NULL;
 
-	const PlayerRecord* wr = whos_highest_projected(WR, context->taken, context->pick);	
+	const PlayerRecord* wr = whos_highest_projected(WR, context->taken, pick);	
 	node->children[WR] = (wr != NULL && requirements[WR] > 0) ? create_node(node, wr) : NULL;
 
-	const PlayerRecord* te = whos_highest_projected(TE, context->taken, context->pick);	
+	const PlayerRecord* te = whos_highest_projected(TE, context->taken, pick);	
 	node->children[TE] = (te != NULL && requirements[TE] > 0) ? create_node(node, te) : NULL;
 
-	const PlayerRecord* k = whos_highest_projected(K, context->taken, context->pick);	
+	const PlayerRecord* k = whos_highest_projected(K, context->taken, pick);	
 	node->children[K] = (k != NULL && requirements[K] > 0) ? create_node(node, k) : NULL;
 
-	const PlayerRecord* dst = whos_highest_projected(DST, context->taken, context->pick);	
+	const PlayerRecord* dst = whos_highest_projected(DST, context->taken, pick);	
 	node->children[DST] = (dst != NULL && requirements[DST] > 0) ? create_node(node, dst) : NULL;
 
-	const PlayerRecord* flex = whos_highest_projected(FLEX, context->taken, context->pick);
+	const PlayerRecord* flex = whos_highest_projected(FLEX, context->taken, pick);
     node->children[FLEX] = (flex != NULL && requirements[FLEX] > 0) ? create_node(node, flex) : NULL;
 }
 
 double simulate_score(const SearchContext* context, const Node* from_node)
 {
 	// Copy search context so we can simulate in isolation
-	SearchContext* sim_search_context = create_search_context(context->pick, context->taken);
+	SearchContext* sim_search_context = create_search_context(context->pick-1, context->taken); // subtract one to get back to our pick
 	reset_search_context_to(context, sim_search_context);
 
 	unsigned int drafting_team = team_with_pick(context->pick);
 
 	// Assume pick from from_node happened and sim remaining rounds
-	make_pick(sim_search_context, from_node->chosen_player);
-	if (sim_search_context->team_requirements[team_with_pick(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0) 
-		return -10000000;
-	sim_search_context->pick++; // Valid pick... advance pick number and sim
+	//????make_pick(sim_search_context, from_node->chosen_player);
+	if(sim_search_context->team_requirements[team_with_pick(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0)
+    {
+        debug_dump_branch(from_node);
+        assert(false);
+    }
 
 	// go up branch to calculate real cumultive score to this point
 	double score = 0.0;
@@ -303,7 +315,6 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 		const PlayerRecord* player = sim_pick_for_team(sim_search_context);
 		assert(player != NULL);
 
-		make_pick(sim_search_context, player);
 
 		// Only count score for every cycle of picks so
 		// we add up score of a single team.
@@ -312,7 +323,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 			score += player->projected_points;
 		}
 
-		sim_search_context->pick++;
+		make_pick(sim_search_context, player);
 	}
 
 	destroy_search_context(sim_search_context);
@@ -415,4 +426,27 @@ static void free_node(Node* node)
 
     free(node);
     node = NULL;
+}
+
+static void debug_dump_branch(const Node* node)
+{
+    const Node* n = node;
+    printf("Branch: ");
+	while (n->parent != NULL)
+	{
+        printf("%s <- ", n->chosen_player->name);
+		n = n->parent;
+	}
+    printf("\n");
+}
+
+static void debug_dump_taken(const Taken* taken, int passed_picks)
+{
+    printf("Taken: ");
+    for (int i = 0; i < passed_picks; i++)
+    {
+        const PlayerRecord* player = get_player_by_id(taken[i].player_id);
+        printf("%s, ", player->name);
+    }
+    printf("\n");
 }

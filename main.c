@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 	double team_points[NUMBER_OF_TEAMS];
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++) { team_points[i] = 0.0; }
 
-	for (int i = 0; i < 12; i++)
+	for (int i = 0; i < NUMBER_OF_PICKS; i++)
     {
 		int team = team_with_pick(i);
 		const PlayerRecord* player = NULL;
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 		}
 		else 
 		{
-			player = calculate_best_pick(5, i, taken);
+			player = calculate_best_pick(1, i, taken);
 		}
 		taken[i].player_id = player->id;
 		taken[i].by_team = team;
