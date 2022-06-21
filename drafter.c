@@ -128,6 +128,7 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
 
+    //debug_dump_taken(taken, pick);
     Node* root = create_node(NULL, NULL);
 
 	MASTER_CONTEXT->node = root;
@@ -136,6 +137,10 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
     while ( (clock() / CLOCKS_PER_SEC) - start_time_s < thinking_time )
     {
         Node* node = current_context->node;
+        if (!node) // We are out of players to pick
+        {
+            break;
+        }
         if (node->parent != NULL)
         {
             make_pick(current_context, node->chosen_player);
@@ -146,10 +151,8 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
             expand_tree(node, current_context);
             if (node->parent != NULL) // We don't calculate score for root
             {
+                current_context->pick--;
                 double score = simulate_score(current_context, node);
-                //debug_dump_branch(node);
-                //debug_dump_taken(current_context->taken, current_context->pick);
-                //printf("\n");
                 if (current_context->pick > max_depth)
                 {
                     max_depth = current_context->pick;
@@ -160,10 +163,6 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
         }
         else
         {
-            if (is_leaf(node))
-            {
-                printf("Ahhh!\n");
-            }
             current_context->node = select_child(node, team_with_pick(current_context->pick));
         }
     } 
@@ -189,7 +188,7 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 
 	free_node(root);
 
-    printf("Finished with search depth of %d\n", max_depth);
+    printf("\nFinished with search depth of %d\n", max_depth - pick);
 
     return chosen_player;
 }
@@ -287,32 +286,46 @@ void expand_tree(Node* const node, const SearchContext* const context)
 double simulate_score(const SearchContext* context, const Node* from_node)
 {
 	// Copy search context so we can simulate in isolation
-	SearchContext* sim_search_context = create_search_context(context->pick-1, context->taken); // subtract one to get back to our pick
+	SearchContext* sim_search_context = create_search_context(context->pick, context->taken);
 	reset_search_context_to(context, sim_search_context);
 
 	unsigned int drafting_team = team_with_pick(context->pick);
 
 	// Assume pick from from_node happened and sim remaining rounds
-	//????make_pick(sim_search_context, from_node->chosen_player);
+	make_pick(sim_search_context, from_node->chosen_player);
+    /*
 	if(sim_search_context->team_requirements[team_with_pick(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0)
     {
         debug_dump_branch(from_node);
         assert(false);
     }
+    */
 
 	// go up branch to calculate real cumultive score to this point
 	double score = 0.0;
 	const Node* n = from_node;
+    int p = sim_search_context->pick - 1;
 	while (n->parent != NULL)
 	{
 		//TODO: Only total up picks of players from previous drafting team
-		score += n->chosen_player->projected_points;
+        if (team_with_pick(p) == drafting_team) 
+        {
+		    score += n->chosen_player->projected_points;
+        }
 		n = n->parent;
+        p--;
 	}
 
 	while (sim_search_context->pick < NUMBER_OF_PICKS)
 	{
 		const PlayerRecord* player = sim_pick_for_team(sim_search_context);
+        //TODO: I inserted this cheap return score thing because the assert below was 
+        // triggering... figure out WHY. I suspect its because we are running out of players or
+        // something???
+        if (!player)
+        {
+            return score;
+        }
 		assert(player != NULL);
 
 

@@ -8,10 +8,10 @@
 #define NUMBER_OF_TEAMS 12
 
 #define NUMBER_OF_QB  1
-#define NUMBER_OF_RB  0
-#define NUMBER_OF_WR  0
+#define NUMBER_OF_RB  2
+#define NUMBER_OF_WR  2
 #define NUMBER_OF_TE  1
-#define NUMBER_OF_FLEX  0
+#define NUMBER_OF_FLEX  2
 #define NUMBER_OF_K  0
 #define NUMBER_OF_DST  0
 

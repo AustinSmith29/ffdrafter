@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
 				printf("Who did %s pick? ", DRAFT_ORDER[team][0]);
 				char name[50];
 				fgets(name, 50, stdin);
+                name[strcspn(name, "\n")] = '\0';
 				player = get_player_by_name(name);
 			}
 		}
@@ -71,8 +72,7 @@ int main(int argc, char *argv[])
 		taken[i].player_id = player->id;
 		taken[i].by_team = team;
 		team_points[team] += player->projected_points;
-		printf("Round %d Team %s Picked %s\n", 
-				NUMBER_OF_PICKS % NUMBER_OF_TEAMS, 
+		printf("Team %s Picked %s\n", 
 				DRAFT_ORDER[taken[i].by_team][0], 
 				player->name
 		);
