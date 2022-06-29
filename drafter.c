@@ -342,29 +342,22 @@ const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
 
-	const PlayerRecord* qb = whos_highest_projected(QB, sim_taken, context->pick);	
-	const PlayerRecord* rb = whos_highest_projected(RB, sim_taken, context->pick);	
-	const PlayerRecord* wr = whos_highest_projected(WR, sim_taken, context->pick);	
-	const PlayerRecord* te = whos_highest_projected(TE, sim_taken, context->pick);	
-	const PlayerRecord* k = whos_highest_projected(K, sim_taken, context->pick);	
-	const PlayerRecord* dst = whos_highest_projected(DST, sim_taken, context->pick);	
-	const PlayerRecord* flex = (rb->projected_points >= wr->projected_points) ? rb : wr;	
-
-	assert(qb || rb || wr || te || k || dst || flex);
-
-	const PlayerRecord* list[] = {qb, rb, wr, te, k, dst, flex};
-
-	// Kinda hacky way to do this but it'll work for now I think.
-	// Might have to add filtering do the list to exclude positions
-	// that have no available players left or that are unneeded by
-	// the team.
-	int randIndex = random() % NUM_POSITIONS;
-	while (list[randIndex] == NULL || still_required[list[randIndex]->position] <= 0) 
-	{
-		randIndex = random() % NUM_POSITIONS;
-	}
-
-	return list[randIndex];
+	const PlayerRecord* list[NUM_POSITIONS];
+    int len = 0;
+    for (int i = 0; i < NUM_POSITIONS; i++)
+    {
+        const PlayerRecord* pos = whos_highest_projected(i, sim_taken, context->pick);
+        if (pos && still_required[i] > 0)
+        {
+            list[len++] = pos;
+        }
+    }
+    if (len == 0)
+    {
+        return NULL;
+    }
+    int randIndex = random() % len;
+    return list[randIndex];
 }
 
 
