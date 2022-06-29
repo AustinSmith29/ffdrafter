@@ -22,11 +22,6 @@ typedef struct Node
 static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player);
 static void free_node(Node *node);
 
-typedef struct PositionRequirements {
-	int for_team;
-	int still_required[NUM_POSITIONS]; 
-} PositionRequirements;
-
 // We will be going down "experimental" branches of draft trees
 // and will need a way to keep track/reset search state when
 // we want to switch to a different branch. This structure
@@ -36,7 +31,7 @@ typedef struct SearchContext
 	Node* node;
 	int pick;
 	Taken taken[NUMBER_OF_PICKS];
-	PositionRequirements team_requirements[NUMBER_OF_TEAMS];
+	int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
 } SearchContext;
 
 static SearchContext* create_search_context(int pick, const Taken* taken);
@@ -48,14 +43,13 @@ SearchContext* create_search_context(int pick, const Taken* taken)
 	memcpy(context->taken, taken, NUMBER_OF_PICKS * sizeof(Taken));
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
 	{
-		context->team_requirements[i].for_team = i;
-		context->team_requirements[i].still_required[QB] = NUMBER_OF_QB;
-		context->team_requirements[i].still_required[RB] = NUMBER_OF_RB;
-		context->team_requirements[i].still_required[WR] = NUMBER_OF_WR;
-		context->team_requirements[i].still_required[TE] = NUMBER_OF_TE;
-		context->team_requirements[i].still_required[FLEX] = NUMBER_OF_FLEX;
-		context->team_requirements[i].still_required[K] = NUMBER_OF_K;
-		context->team_requirements[i].still_required[DST] = NUMBER_OF_DST;
+		context->team_requirements[i][QB] = NUMBER_OF_QB;
+		context->team_requirements[i][RB] = NUMBER_OF_RB;
+		context->team_requirements[i][WR] = NUMBER_OF_WR;
+		context->team_requirements[i][TE] = NUMBER_OF_TE;
+		context->team_requirements[i][FLEX] = NUMBER_OF_FLEX;
+		context->team_requirements[i][K] = NUMBER_OF_K;
+		context->team_requirements[i][DST] = NUMBER_OF_DST;
 	}
 	// Loop through taken and mark off those players from team_requirements
 	// Note: An oddity is that we first decrement FLEX for RB/WR as it makes
@@ -65,11 +59,11 @@ SearchContext* create_search_context(int pick, const Taken* taken)
 	{
 		Taken t = taken[i];
 		const PlayerRecord* player = get_player_by_id(t.player_id);
-		if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team].still_required[FLEX] > 0)) {
-			context->team_requirements[t.by_team].still_required[FLEX]--;
+		if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
+			context->team_requirements[t.by_team][FLEX]--;
 		}
 		else {
-			context->team_requirements[t.by_team].still_required[player->position]--;
+			context->team_requirements[t.by_team][player->position]--;
 		}
 	}
 	
@@ -98,12 +92,12 @@ static void make_pick(SearchContext* context, const PlayerRecord* player)
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
 
-	if ((player->position == RB || player->position == WR) && (context->team_requirements[team].still_required[FLEX] > 0))
+	if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
 	{
-		context->team_requirements[team].still_required[FLEX]--;
+		context->team_requirements[team][FLEX]--;
 	}
 	else {
-		context->team_requirements[team].still_required[player->position]--;
+		context->team_requirements[team][player->position]--;
 	}
     context->pick++;
 }
@@ -198,7 +192,7 @@ void reset_search_context_to(const SearchContext* original, SearchContext* delta
 	delta->node = original->node;
 	delta->pick = original->pick;
 	memcpy(delta->taken, original->taken, NUMBER_OF_PICKS * sizeof(Taken));
-	memcpy(delta->team_requirements, original->team_requirements, NUMBER_OF_TEAMS * sizeof(PositionRequirements));
+	memcpy(delta->team_requirements, original->team_requirements, NUMBER_OF_TEAMS * NUM_POSITIONS * sizeof(int));
 }
 
 static double calculate_ucb(const Node* node, int team);
@@ -259,7 +253,7 @@ void expand_tree(Node* const node, const SearchContext* const context)
 {
 	assert(node != NULL);
     int pick = context->pick;
-	const int* requirements = context->team_requirements[team_with_pick(pick)].still_required;
+	const int* requirements = context->team_requirements[team_with_pick(pick)];
 
 	const PlayerRecord* qb = whos_highest_projected(QB, context->taken, pick);	
 	node->children[QB] = (qb != NULL && requirements[QB] > 0) ? create_node(node, qb) : NULL;
@@ -346,7 +340,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 {
 	const Taken* const sim_taken = context->taken;
-	const int* const still_required = context->team_requirements[team_with_pick(context->pick)].still_required;
+	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
 
 	int still_needed = 0;
 	for (int i = 0; i < NUM_POSITIONS; i++)
