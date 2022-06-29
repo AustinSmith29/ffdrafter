@@ -342,16 +342,6 @@ const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
 
-	int still_needed = 0;
-	for (int i = 0; i < NUM_POSITIONS; i++)
-	{
-		if (still_required[i] > 0) 
-		{
-			still_needed++;
-		}
-	}
-	if (still_needed == 0) return NULL;
-
 	const PlayerRecord* qb = whos_highest_projected(QB, sim_taken, context->pick);	
 	const PlayerRecord* rb = whos_highest_projected(RB, sim_taken, context->pick);	
 	const PlayerRecord* wr = whos_highest_projected(WR, sim_taken, context->pick);	
