@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 	double team_points[NUMBER_OF_TEAMS];
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++) { team_points[i] = 0.0; }
 
-	for (int i = 0; i < NUMBER_OF_PICKS; i++) {
+	for (int i = 0; i < NUMBER_OF_PICKS; i++)
+    {
 		int team = team_with_pick(i);
 		const PlayerRecord* player = NULL;
 		if (strcmp(DRAFT_ORDER[team][1], "Human") == 0) 
@@ -59,19 +60,19 @@ int main(int argc, char *argv[])
 			{
 				printf("Who did %s pick? ", DRAFT_ORDER[team][0]);
 				char name[50];
-				gets(name); // TODO: I know its unsafe... but this is just a test.
+				fgets(name, 50, stdin);
+                name[strcspn(name, "\n")] = '\0';
 				player = get_player_by_name(name);
 			}
 		}
 		else 
 		{
-			player = calculate_best_pick(5, i, taken);
+			player = calculate_best_pick(1, i, taken);
 		}
 		taken[i].player_id = player->id;
 		taken[i].by_team = team;
 		team_points[team] += player->projected_points;
-		printf("Round %d Team %s Picked %s\n", 
-				NUMBER_OF_PICKS % NUMBER_OF_TEAMS, 
+		printf("Team %s Picked %s\n", 
 				DRAFT_ORDER[taken[i].by_team][0], 
 				player->name
 		);
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
 			}
 			printf("\n");
 		}
+        free((PlayerRecord*)player);
 	}
 
 	printf("\nDraft Completed!\n\nProjected Totals: \n");

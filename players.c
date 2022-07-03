@@ -82,7 +82,7 @@ int codify_position_str(const char* position_str)
         return -1;
 }
 
-int is_taken(int player_id, Taken taken[], int passed_picks)
+int is_taken(int player_id, const Taken taken[], int passed_picks)
 {
 	for (int i = 0; i < passed_picks; i++)
 	{
@@ -93,17 +93,22 @@ int is_taken(int player_id, Taken taken[], int passed_picks)
 	return 0;
 }
 
-const PlayerRecord* whos_highest_projected(int position, Taken taken[], int passed_picks)
+const PlayerRecord* whos_highest_projected(int position, const Taken taken[], int passed_picks)
 {
+    double max_score = 0.0;
+    const PlayerRecord* highest = NULL;
 	const PlayerRecord* player = players_begin();
 	for (; player != players_end(); player = players_next()) 
 	{
-		if (player->position == position && !is_taken(player->id, taken, passed_picks))
+		if ((player->position == position || (position == FLEX && (player->position == RB || player->position == WR))) && 
+                !is_taken(player->id, taken, passed_picks) &&
+                player->projected_points > max_score)
 		{
-			return player;
+		    highest = player;
+            max_score = player->projected_points;
 		}
 	}
-    return NULL;
+    return highest;
 }
 
 const PlayerRecord* get_player_by_id(unsigned int player_id)
