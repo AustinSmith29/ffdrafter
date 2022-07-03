@@ -308,6 +308,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
         // something???
         if (!player)
         {
+	        destroy_search_context(sim_search_context);
             return score;
         }
 		assert(player != NULL);
@@ -355,17 +356,6 @@ void backpropogate_score(Node* node, double score, int team)
 {
 	if (!node)
 		return;
-	if (node->score < 0)
-		return;
-	//TODO: hack way to stop the score from branches that are supposed to be dead from
-	// bubbling up. Need to just make the tree have terminal leaves rather than this negative
-	// simulated score bullshit.
-	if (score < 0) {
-		node->score[team] = score;
-		node->visited++;
-		backpropogate_score(node->parent, 0, team);
-		return;
-	}
 	if (score > node->score[team])
 	{
 		node->score[team] = score;
@@ -392,7 +382,7 @@ static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_p
 static void free_node(Node* node)
 {
 	if (!node)
-		return;
+        return;
     node->parent = NULL;
     free_node(node->children[QB]);
     free_node(node->children[RB]);
