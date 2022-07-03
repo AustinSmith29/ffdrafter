@@ -83,8 +83,6 @@ static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
 static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
-static void debug_dump_branch(const Node* node);
-static void debug_dump_taken(const Taken* taken, int passed_picks);
 
 static void make_pick(SearchContext* context, const PlayerRecord* player)
 {
@@ -122,7 +120,6 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
 
-    //debug_dump_taken(taken, pick);
     Node* root = create_node(NULL, NULL);
 
 	MASTER_CONTEXT->node = root;
@@ -287,13 +284,6 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 
 	// Assume pick from from_node happened and sim remaining rounds
 	make_pick(sim_search_context, from_node->chosen_player);
-    /*
-	if(sim_search_context->team_requirements[team_with_pick(sim_search_context->pick)].still_required[from_node->chosen_player->position] < 0)
-    {
-        debug_dump_branch(from_node);
-        assert(false);
-    }
-    */
 
 	// go up branch to calculate real cumultive score to this point
 	double score = 0.0;
@@ -416,27 +406,4 @@ static void free_node(Node* node)
 
     free(node);
     node = NULL;
-}
-
-static void debug_dump_branch(const Node* node)
-{
-    const Node* n = node;
-    printf("Branch: ");
-	while (n->parent != NULL)
-	{
-        printf("%s <- ", n->chosen_player->name);
-		n = n->parent;
-	}
-    printf("\n");
-}
-
-static void debug_dump_taken(const Taken* taken, int passed_picks)
-{
-    printf("Taken: ");
-    for (int i = 0; i < passed_picks; i++)
-    {
-        const PlayerRecord* player = get_player_by_id(taken[i].player_id);
-        printf("%s, ", player->name);
-    }
-    printf("\n");
 }
