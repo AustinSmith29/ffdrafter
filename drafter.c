@@ -179,8 +179,6 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 
 	free_node(root);
 
-    printf("\nFinished with search depth of %d\n", max_depth - pick);
-
     return chosen_player;
 }
 
