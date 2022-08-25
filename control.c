@@ -58,7 +58,7 @@ int do_command(char* command, DraftState* state)
         if (state->pick > 0) {
             state->pick--;
             const PlayerRecord* p = get_player_by_id(state->taken[state->pick].player_id);
-            fprintf(stdout, "Undoing pick %d: %s\n", state->pick, p->name);
+            fprintf(stdout, "Undoing pick %d: %s\n", state->pick+1, p->name); //+1 so not zero index
         }
         return 0;
     }
@@ -90,6 +90,11 @@ int do_command(char* command, DraftState* state)
     }
     else if (strcmp(token, "history") == 0)
     {
+        for (int i = 0; i < state->pick; i++)
+        {
+            const PlayerRecord* p = get_player_by_id(state->taken[i].player_id);
+            fprintf(stdout, "%d. %s\n", i+1, p->name);
+        }
         return 0;
     }
     else if (strcmp(token, "roster") == 0)
