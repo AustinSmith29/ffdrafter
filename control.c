@@ -55,6 +55,11 @@ int do_command(char* command, DraftState* state)
     }
     else if (strcmp(token, "undo_pick") == 0)
     {
+        if (state->pick > 0) {
+            state->pick--;
+            const PlayerRecord* p = get_player_by_id(state->taken[state->pick].player_id);
+            fprintf(stdout, "Undoing pick %d: %s\n", state->pick, p->name);
+        }
         return 0;
     }
     else if (strcmp(token, "set_think_time") == 0)
