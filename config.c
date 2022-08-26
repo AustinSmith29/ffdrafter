@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "config.h"
 #include "players.h"
@@ -59,8 +60,9 @@ int team_with_pick(int pick)
 
 void draftbot_initialize()
 {
-    if (load_players("projections_2021.csv") < 0) {
-        printf("Could not load players!\n");
+    if (load_players("projections_2022.csv") < 0) {
+        printf("Fatal error:  Could not load players!\n");
+        exit(1);
     }
 	build_snake_order();
 }

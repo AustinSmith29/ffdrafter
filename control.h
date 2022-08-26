@@ -29,7 +29,8 @@ typedef struct DraftState
 // SET_THINK_TIME;time_in_seconds
 // STATE -> Prints current_pick #, drafting team, and bot think_time.
 // HISTORY;[?round]
-// ROSTER;["Team Name"]
+// ROSTER;team_id --> Shows roster slots and summation of all fantasy points for team
+// POOL;position;lim --> Shows available players at position up to lim
 int do_command(char* command, DraftState* state);
 
 #endif
