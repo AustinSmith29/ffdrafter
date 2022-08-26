@@ -19,6 +19,11 @@ int do_command(char* command, DraftState* state)
 
     if (strcmp(token, "think_pick") == 0)
     {
+        if (state->pick >= NUMBER_OF_PICKS)
+        {
+            fprintf(stderr, "No more slots available. Draft is complete.\n");
+            return ERR_RUNTIME;
+        }
         const PlayerRecord* p = calculate_best_pick(state->think_time, state->pick, state->taken);
 
         if (!p)
@@ -33,6 +38,11 @@ int do_command(char* command, DraftState* state)
     }
     else if (strcmp(token, "make_pick") == 0)
     {
+        if (state->pick >= NUMBER_OF_PICKS)
+        {
+            fprintf(stderr, "No more slots available. Draft is complete.\n");
+            return ERR_RUNTIME;
+        }
         token = strtok(NULL, ";");
         if (!token)
         {

@@ -31,6 +31,8 @@ typedef struct DraftState
 // HISTORY;[?round]
 // ROSTER;team_id --> Shows roster slots and summation of all fantasy points for team
 // POOL;position;lim --> Shows available players at position up to lim
+// LOAD;filename --> loads and resumes draft that was previously started
+// SAVE;filename --> saves draft
 int do_command(char* command, DraftState* state);
 
 #endif
