@@ -33,6 +33,8 @@ typedef struct DraftState
 // POOL;position;lim --> Shows available players at position up to lim
 // LOAD;filename --> loads and resumes draft that was previously started
 // SAVE;filename --> saves draft
+// EXIT
 int do_command(char* command, DraftState* state);
 
+void init_draftstate(DraftState* state);
 #endif

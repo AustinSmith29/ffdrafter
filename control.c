@@ -1,6 +1,5 @@
 #include "control.h"
 #include "drafter.h"
-#include "players.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -14,7 +13,6 @@ static void print_available(int position, int limit, const DraftState* const sta
 // Parse the input and execute the corresponding logic.
 int do_command(char* command, DraftState* state)
 {
-    //str_tolower(command); 
     char* token = strtok(command, ";");
 
     if (strcmp(token, "think_pick") == 0)
@@ -227,6 +225,23 @@ int do_command(char* command, DraftState* state)
         fprintf(stderr, "%s is an unknown command\n", token);
         return ERR_UNK_COMMAND;
     }
+}
+
+void init_draftstate(DraftState* state)
+{
+    state->think_time = 10;
+    state->pick = 0;
+    memset(state->taken, 0, NUMBER_OF_PICKS * sizeof(Taken));
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
+	{
+		state->still_required[i][QB] = NUMBER_OF_QB;
+		state->still_required[i][RB] = NUMBER_OF_RB;
+		state->still_required[i][WR] = NUMBER_OF_WR;
+		state->still_required[i][TE] = NUMBER_OF_TE;
+		state->still_required[i][FLEX] = NUMBER_OF_FLEX;
+		state->still_required[i][K] = NUMBER_OF_K;
+		state->still_required[i][DST] = NUMBER_OF_DST;
+	}
 }
 
 static void str_tolower(char* string)
