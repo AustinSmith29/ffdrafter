@@ -238,6 +238,10 @@ int do_command(char* command, DraftState* state)
         }
         return 0;
     }
+    else if (strcmp(token, "exit") == 0)
+    {
+        return -1;
+    }
     else
     {
         fprintf(stderr, "%s is an unknown command\n", token);

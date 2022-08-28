@@ -12,13 +12,14 @@ int main(int argc, char *argv[])
     DraftState state;
     init_draftstate(&state);
 
-    while (1) 
+    int code = 0;
+    while (code >= 0) 
     {
         char cmd_buf[100];
         printf(">");
         fgets(cmd_buf, 100, stdin); 
         cmd_buf[strcspn(cmd_buf, "\n")] = '\0';
-        int code = do_command(cmd_buf, &state);
+        code = do_command(cmd_buf, &state);
     }
 
 	draftbot_destroy();
