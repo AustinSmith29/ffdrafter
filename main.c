@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     init_draftstate(&state);
 
     int code = 0;
-    while (code >= 0) 
+    while (code != QUIT) 
     {
         char cmd_buf[100];
         printf(">");

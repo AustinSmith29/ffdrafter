@@ -2,6 +2,7 @@
 #include "drafter.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,7 +132,7 @@ int do_command(char* command, DraftState* state)
         for (int i = 0; i < state->pick; i++)
         {
             const PlayerRecord* p = get_player_by_id(state->taken[i].player_id);
-            fprintf(stdout, "%d. %s\n", i+1, p->name);
+            fprintf(stdout, "%d. %s\n", i, p->name);
         }
         return 0;
     }
@@ -240,7 +241,73 @@ int do_command(char* command, DraftState* state)
     }
     else if (strcmp(token, "exit") == 0)
     {
-        return -1;
+        return QUIT;
+    }
+    else if (strcmp(token, "save") == 0)
+    {
+        char* filename = strtok(NULL, ";");
+        if (!filename)
+        {
+            fprintf(stderr, "Error: No filename specified\n");
+            return ERR_BAD_ARG;
+        }
+        FILE* f = fopen(filename, "w");
+        if (!f)
+        {
+            fprintf(stderr, "%s\n", strerror(errno));
+            return ERR_RUNTIME;
+        }
+        for (int i = 0; i < state->pick; i++)
+        {
+            char id_buf[10];
+            if (snprintf(id_buf, 10, "%d\n", state->taken[i].player_id) < 0)
+            {
+                fclose(f);
+                fprintf(stderr, "Error: Could not save file.\n");
+                return ERR_RUNTIME;
+            }
+            fputs(id_buf, f);
+        }
+        fclose(f);
+    }
+    else if (strcmp(token, "load") == 0)
+    {
+        char* filename = strtok(NULL, ";");
+        if (!filename)
+        {
+            fprintf(stderr, "Error: No filename specified\n");
+            return ERR_BAD_ARG;
+        }
+        FILE* f = fopen(filename, "r");
+        if (!f)
+        {
+            fprintf(stderr, "%s\n", strerror(errno));
+            return ERR_BAD_ARG;
+        }
+        
+        init_draftstate(state); // reset draftstate
+        int player_id;
+        while (fscanf(f, "%d", &player_id) != EOF)
+        {
+            const PlayerRecord* p = get_player_by_id(player_id);
+            int team = team_with_pick(state->pick);
+            // Check if player is already taken
+            for (int i = 0; i < state->pick; i++)
+            {
+                if (p->id == state->taken[i].player_id)
+                {
+                    fprintf(stderr, "%s has already been picked.\n", p->name);
+                    return ERR_RUNTIME;
+                }
+            }
+            if (dec_team_requirements(p, state, team) < 0)
+            {
+                fprintf(stderr, "No more slots in roster for player %s\n", p->name);
+                return ERR_RUNTIME;
+            }
+            state->taken[state->pick++] = (Taken) { .player_id = p->id, .by_team = team };
+        }
+        return 0;
     }
     else
     {

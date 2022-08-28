@@ -16,6 +16,8 @@ typedef struct DraftState
 #define ERR_BAD_ARG -2
 #define ERR_RUNTIME -3
 
+#define QUIT 1
+
 // Executes the command and modifies the draft state accordingly.
 // Returns 0 on success. Returns error code on failure.
 //
@@ -28,7 +30,7 @@ typedef struct DraftState
 // UNDO_PICK
 // SET_THINK_TIME;time_in_seconds
 // STATE -> Prints current_pick #, drafting team, and bot think_time.
-// HISTORY;[?round]
+// HISTORY
 // ROSTER;team_id --> Shows roster slots and summation of all fantasy points for team
 // POOL;position;lim --> Shows available players at position up to lim
 // LOAD;filename --> loads and resumes draft that was previously started
