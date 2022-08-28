@@ -251,12 +251,12 @@ static void str_tolower(char* string)
 
 static int dec_team_requirements(const PlayerRecord* const p, DraftState* state, int team)
 {
-    if ((p->position == RB || p->position == WR) && (state->still_required[team][FLEX] > 0)) {
-        state->still_required[team][FLEX]--;
+    if (state->still_required[team][p->position] > 0) {
+        state->still_required[team][p->position]--;
         return 0;
     }
-    else if (state->still_required[team][p->position] > 0) {
-        state->still_required[team][p->position]--;
+    else if ((p->position == RB || p->position == WR) && (state->still_required[team][FLEX] > 0)) {
+        state->still_required[team][FLEX]--;
         return 0;
     }
     return -1;

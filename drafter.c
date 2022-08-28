@@ -59,11 +59,12 @@ SearchContext* create_search_context(int pick, const Taken* taken)
 	{
 		Taken t = taken[i];
 		const PlayerRecord* player = get_player_by_id(t.player_id);
-		if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
-			context->team_requirements[t.by_team][FLEX]--;
-		}
-		else {
+        if (context->team_requirements[t.by_team][player->position] > 0)
+        {
 			context->team_requirements[t.by_team][player->position]--;
+        }
+        else if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
+			context->team_requirements[t.by_team][FLEX]--;
 		}
 	}
 	
@@ -90,15 +91,18 @@ static void make_pick(SearchContext* context, const PlayerRecord* player)
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
 
-	if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
+    if (context->team_requirements[team][player->position] > 0)
+    {
+		context->team_requirements[team][player->position]--;
+    }
+    else if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
 	{
 		context->team_requirements[team][FLEX]--;
 	}
-	else {
-		context->team_requirements[team][player->position]--;
-	}
+
     context->pick++;
 }
+
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.

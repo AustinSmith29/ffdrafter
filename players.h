@@ -1,6 +1,8 @@
 #ifndef PLAYERS_H
 #define PLAYERS_H
 
+#include "config.h"
+
 #define QB   0
 #define RB   1
 #define WR   2
