@@ -7,8 +7,8 @@
 #include <stdlib.h>
 
 static void str_tolower(char* string);
-static int dec_team_requirements(const PlayerRecord* const p, DraftState* state, int team);
-static void print_available(int position, int limit, const DraftState* const state);
+static int dec_team_requirements(const PlayerRecord* p, DraftState* state, int team);
+static void print_available(int position, int limit, const DraftState* state);
 
 // Parse the input and execute the corresponding logic.
 int do_command(char* command, DraftState* state)
@@ -74,11 +74,29 @@ int do_command(char* command, DraftState* state)
     }
     else if (strcmp(token, "undo_pick") == 0)
     {
-        //TODO: Have to undo team_requirements too
         if (state->pick > 0) {
             state->pick--;
+            // Reset team requirements then redo picks to rebuild team_requirements.
+            // We do this because I think its easier to this vs figure out if a WR/RB was
+            // a FLEX or not.
+            for (int i = 0; i < NUMBER_OF_TEAMS; i++)
+            {
+                state->still_required[i][QB] = NUMBER_OF_QB;
+                state->still_required[i][RB] = NUMBER_OF_RB;
+                state->still_required[i][WR] = NUMBER_OF_WR;
+                state->still_required[i][TE] = NUMBER_OF_TE;
+                state->still_required[i][FLEX] = NUMBER_OF_FLEX;
+                state->still_required[i][K] = NUMBER_OF_K;
+                state->still_required[i][DST] = NUMBER_OF_DST;
+            }
+            for (int i = 0; i < state->pick; i++)
+            {
+                const PlayerRecord* p = get_player_by_id(state->taken[i].player_id);
+                int team = team_with_pick(i);
+                dec_team_requirements(p, state, team);
+            }
             const PlayerRecord* p = get_player_by_id(state->taken[state->pick].player_id);
-            fprintf(stdout, "Undoing pick %d: %s\n", state->pick+1, p->name); //+1 so not zero index
+            fprintf(stdout, "Undoing pick %d: %s\n", state->pick, p->name);
         }
         return 0;
     }
@@ -249,7 +267,7 @@ static void str_tolower(char* string)
     for (char* c = string; *c; c++) *c = tolower(*c);
 }
 
-static int dec_team_requirements(const PlayerRecord* const p, DraftState* state, int team)
+static int dec_team_requirements(const PlayerRecord* p, DraftState* state, int team)
 {
     if (state->still_required[team][p->position] > 0) {
         state->still_required[team][p->position]--;
@@ -262,10 +280,10 @@ static int dec_team_requirements(const PlayerRecord* const p, DraftState* state,
     return -1;
 }
 
-static void print_available(int position, int limit, const DraftState* const state)
+static void print_available(int position, int limit, const DraftState* state)
 {
-    PlayerRecord* p;
-    for (p = players_begin(); p != players_end(); p = players_next())
+    const PlayerRecord* p = players_begin();
+    for (; p != players_end(); p = players_next())
     {
         if (limit == 0)
             break;
