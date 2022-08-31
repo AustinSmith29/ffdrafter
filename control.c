@@ -392,7 +392,7 @@ static void print_available(int position, int limit, const DraftState* state)
             break;
         if (p->position == position && !is_taken(p->id, state->taken, state->pick))
         {
-            fprintf(stdout, "%s\n", p->name);
+            fprintf(stdout, "%s %f\n", p->name, p->projected_points);
             limit--;
         }
     }
