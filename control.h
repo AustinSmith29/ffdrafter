@@ -33,6 +33,8 @@ typedef struct DraftState
 // HISTORY
 // ROSTER;team_id --> Shows roster slots and summation of all fantasy points for team
 // POOL;position;lim --> Shows available players at position up to lim
+// BENCH_PLAYER;Player Name --> Add player to taken list without assigning to roster (temporary hack
+// to allow "bench" players... they don't add to score
 // LOAD;filename --> loads and resumes draft that was previously started
 // SAVE;filename --> saves draft
 // EXIT

@@ -239,6 +239,38 @@ int do_command(char* command, DraftState* state)
         }
         return 0;
     }
+    else if (strcmp(token, "bench_player") == 0)
+    {
+        if (state->pick >= NUMBER_OF_PICKS)
+        {
+            fprintf(stderr, "No more slots available. Draft is complete.\n");
+            return ERR_RUNTIME;
+        }
+        token = strtok(NULL, ";");
+        if (!token)
+        {
+            fprintf(stderr, "make_pick requires a player name arg.\n");
+            return ERR_BAD_ARG;
+        }
+
+        const PlayerRecord* p = get_player_by_name(token);
+        if (!p)
+        {
+            fprintf(stderr, "No player with name %s exists.\n", token);
+            return ERR_RUNTIME;
+        }
+        // Check if player is already taken
+        for (int i = 0; i < state->pick; i++)
+        {
+            if (p->id == state->taken[i].player_id)
+            {
+                fprintf(stderr, "%s has already been picked.\n", p->name);
+                return ERR_RUNTIME;
+            }
+        }
+        int team = team_with_pick(state->pick);
+        state->taken[state->pick++] = (Taken) { .player_id = p->id, .by_team = team };
+    }
     else if (strcmp(token, "exit") == 0)
     {
         return QUIT;
