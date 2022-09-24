@@ -45,7 +45,7 @@ static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
 static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
-static double zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS]);
+static double calculate_zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS]);
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
@@ -331,7 +331,6 @@ static double simulate_score(const SearchContext* context, const Node* from_node
     int p = sim_search_context->pick - 1;
 	while (n->parent != NULL)
 	{
-		//TODO: Only total up picks of players from previous drafting team
         if (team_with_pick(p) == drafting_team) 
         {
 		    score += n->chosen_player->projected_points;
@@ -352,7 +351,6 @@ static double simulate_score(const SearchContext* context, const Node* from_node
         }
 		assert(player != NULL);
 
-
 		// Only count score for every cycle of picks so
 		// we add up score of a single team.
 		if (team_with_pick(sim_search_context->pick) == drafting_team) 
@@ -372,22 +370,22 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
 
-	const PlayerRecord* list[NUM_POSITIONS];
-    int len = 0;
+    const PlayerRecord* picked_player = NULL;
+    double max_zscore = 0.0;
     for (int i = 0; i < NUM_POSITIONS; i++)
     {
-        const PlayerRecord* pos = whos_highest_projected(i, sim_taken, context->pick);
-        if (pos && still_required[i] > 0)
+        const PlayerRecord* player = whos_highest_projected(i, sim_taken, context->pick);
+        if (player && still_required[i] > 0)
         {
-            list[len++] = pos;
+            double zscore = calculate_zscore(player, sim_taken);
+            if (zscore > max_zscore)
+            {
+                picked_player = player;
+                max_zscore = zscore;
+            }
         }
     }
-    if (len == 0)
-    {
-        return NULL;
-    }
-    int randIndex = random() % len;
-    return list[randIndex];
+    return picked_player;
 }
 
 static void backpropogate_score(Node* node, double score, int team)
@@ -400,4 +398,34 @@ static void backpropogate_score(Node* node, double score, int team)
 	}
 	node->visited++;
 	backpropogate_score(node->parent, score, team);
+}
+
+//TODO: We can just calculate this one time. No need to recompute.
+static double calculate_zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS])
+{
+    // calculate mean
+    double sum = 0.0;
+    int n = 0;
+    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
+    {
+        if (p->position == player->position)
+        {
+            sum += p->projected_points;
+            n++;
+        }
+    }
+    double mean = sum / (double)n;
+
+    // calculate standard deviation
+    double sum_of_squares = 0.0;
+    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
+    {
+        if (p->position == player->position)
+        {
+            sum_of_squares += pow(fabs(p->projected_points - mean), 2.0);
+        }
+    }
+    double stddev = sqrt(sum_of_squares / n);
+
+    return (player->projected_points - mean) / stddev;
 }
