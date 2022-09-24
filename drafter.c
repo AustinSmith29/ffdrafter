@@ -19,8 +19,6 @@ typedef struct Node
 	struct Node* children[NUM_POSITIONS];
 } Node;
 
-static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player);
-static void free_node(Node *node);
 
 // We will be going down "experimental" branches of draft trees
 // and will need a way to keep track/reset search state when
@@ -34,75 +32,20 @@ typedef struct SearchContext
 	int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
 } SearchContext;
 
+static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player);
+static void free_node(Node *node);
 static SearchContext* create_search_context(int pick, const Taken* taken);
-SearchContext* create_search_context(int pick, const Taken* taken)
-{
-	SearchContext* context = malloc(sizeof(SearchContext));
-	context->node = NULL;
-	context->pick = pick;
-	memcpy(context->taken, taken, NUMBER_OF_PICKS * sizeof(Taken));
-	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
-	{
-		context->team_requirements[i][QB] = NUMBER_OF_QB;
-		context->team_requirements[i][RB] = NUMBER_OF_RB;
-		context->team_requirements[i][WR] = NUMBER_OF_WR;
-		context->team_requirements[i][TE] = NUMBER_OF_TE;
-		context->team_requirements[i][FLEX] = NUMBER_OF_FLEX;
-		context->team_requirements[i][K] = NUMBER_OF_K;
-		context->team_requirements[i][DST] = NUMBER_OF_DST;
-	}
-	// Loop through taken and mark off those players from team_requirements
-	// Note: An oddity is that we first decrement FLEX for RB/WR as it makes
-	// it easier to handle team position requirements.
-	// TODO: Duplication here and in make_picks looks like code smell.
-	for (int i = 0; i < pick; i++) 
-	{
-		Taken t = taken[i];
-		const PlayerRecord* player = get_player_by_id(t.player_id);
-        if (context->team_requirements[t.by_team][player->position] > 0)
-        {
-			context->team_requirements[t.by_team][player->position]--;
-        }
-        else if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
-			context->team_requirements[t.by_team][FLEX]--;
-		}
-	}
-	
-	return context;
-}
-
-static void destroy_search_context(SearchContext* context)
-{
-	free(context);
-	context = NULL;
-}
-
+static void destroy_search_context(SearchContext* context);
 static void reset_search_context_to(const SearchContext* original, SearchContext* delta);
 static Node* select_child(const Node* const parent, int team);
+static double calculate_ucb(const Node* node, int team);
 static bool is_leaf(const Node* node);
+static void make_pick(SearchContext* context, const PlayerRecord* player);
 static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
 static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
-
-static void make_pick(SearchContext* context, const PlayerRecord* player)
-{
-	int team = team_with_pick(context->pick);
-	context->taken[context->pick].player_id = player->id;
-	context->taken[context->pick].by_team = team;
-
-    if (context->team_requirements[team][player->position] > 0)
-    {
-		context->team_requirements[team][player->position]--;
-    }
-    else if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
-	{
-		context->team_requirements[team][FLEX]--;
-	}
-
-    context->pick++;
-}
-
+static double zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS]);
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
@@ -188,7 +131,83 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
     return chosen_player;
 }
 
-void reset_search_context_to(const SearchContext* original, SearchContext* delta)
+static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player)
+{
+    Node* node = malloc(sizeof(Node));
+    
+    node->parent = parent;
+    node->visited = 0;
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
+    	node->score[i] = 0.0;
+    node->chosen_player = chosen_player;
+    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
+						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
+
+    return node;
+}
+
+static void free_node(Node* node)
+{
+	if (!node)
+		return;
+    node->parent = NULL;
+    free_node(node->children[QB]);
+    free_node(node->children[RB]);
+    free_node(node->children[WR]);
+    free_node(node->children[TE]);
+    free_node(node->children[K]);
+    free_node(node->children[DST]);
+    free_node(node->children[FLEX]);
+    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
+						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
+
+    free(node);
+    node = NULL;
+}
+
+static SearchContext* create_search_context(int pick, const Taken* taken)
+{
+	SearchContext* context = malloc(sizeof(SearchContext));
+	context->node = NULL;
+	context->pick = pick;
+	memcpy(context->taken, taken, NUMBER_OF_PICKS * sizeof(Taken));
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
+	{
+		context->team_requirements[i][QB] = NUMBER_OF_QB;
+		context->team_requirements[i][RB] = NUMBER_OF_RB;
+		context->team_requirements[i][WR] = NUMBER_OF_WR;
+		context->team_requirements[i][TE] = NUMBER_OF_TE;
+		context->team_requirements[i][FLEX] = NUMBER_OF_FLEX;
+		context->team_requirements[i][K] = NUMBER_OF_K;
+		context->team_requirements[i][DST] = NUMBER_OF_DST;
+	}
+	// Loop through taken and mark off those players from team_requirements
+	// Note: An oddity is that we first decrement FLEX for RB/WR as it makes
+	// it easier to handle team position requirements.
+	// TODO: Duplication here and in make_picks looks like code smell.
+	for (int i = 0; i < pick; i++) 
+	{
+		Taken t = taken[i];
+		const PlayerRecord* player = get_player_by_id(t.player_id);
+        if (context->team_requirements[t.by_team][player->position] > 0)
+        {
+			context->team_requirements[t.by_team][player->position]--;
+        }
+        else if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
+			context->team_requirements[t.by_team][FLEX]--;
+		}
+	}
+	
+	return context;
+}
+
+static void destroy_search_context(SearchContext* context)
+{
+	free(context);
+	context = NULL;
+}
+
+static void reset_search_context_to(const SearchContext* original, SearchContext* delta)
 {
 	delta->node = original->node;
 	delta->pick = original->pick;
@@ -196,8 +215,7 @@ void reset_search_context_to(const SearchContext* original, SearchContext* delta
 	memcpy(delta->team_requirements, original->team_requirements, NUMBER_OF_TEAMS * NUM_POSITIONS * sizeof(int));
 }
 
-static double calculate_ucb(const Node* node, int team);
-Node* select_child(const Node* const parent, int team)
+static Node* select_child(const Node* const parent, int team)
 {
 	assert(parent != NULL);
 	Node* max_score_node = NULL;
@@ -223,7 +241,7 @@ Node* select_child(const Node* const parent, int team)
 	return max_score_node;
 }
 
-double calculate_ucb(const Node* node, int team)
+static double calculate_ucb(const Node* node, int team)
 {
 	assert(node != NULL);
 	double total = 0.0;
@@ -237,7 +255,7 @@ double calculate_ucb(const Node* node, int team)
 	return mean_score + 2 * sqrt(log(node->parent->visited) / node->visited);
 }
 
-bool is_leaf(const Node* node)
+static bool is_leaf(const Node* node)
 {
 	assert(node != NULL);
     for (int i = 0; i < NUM_POSITIONS; i++)
@@ -250,7 +268,25 @@ bool is_leaf(const Node* node)
     return true;
 }
 
-void expand_tree(Node* const node, const SearchContext* const context)
+static void make_pick(SearchContext* context, const PlayerRecord* player)
+{
+	int team = team_with_pick(context->pick);
+	context->taken[context->pick].player_id = player->id;
+	context->taken[context->pick].by_team = team;
+
+    if (context->team_requirements[team][player->position] > 0)
+    {
+		context->team_requirements[team][player->position]--;
+    }
+    else if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
+	{
+		context->team_requirements[team][FLEX]--;
+	}
+
+    context->pick++;
+}
+
+static void expand_tree(Node* const node, const SearchContext* const context)
 {
 	assert(node != NULL);
     int pick = context->pick;
@@ -278,7 +314,7 @@ void expand_tree(Node* const node, const SearchContext* const context)
     node->children[FLEX] = (flex != NULL && requirements[FLEX] > 0) ? create_node(node, flex) : NULL;
 }
 
-double simulate_score(const SearchContext* context, const Node* from_node)
+static double simulate_score(const SearchContext* context, const Node* from_node)
 {
 	// Copy search context so we can simulate in isolation
 	SearchContext* sim_search_context = create_search_context(context->pick, context->taken);
@@ -331,7 +367,7 @@ double simulate_score(const SearchContext* context, const Node* from_node)
 	return score;
 }
 
-const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
+static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 {
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
@@ -354,8 +390,7 @@ const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
     return list[randIndex];
 }
 
-
-void backpropogate_score(Node* node, double score, int team)
+static void backpropogate_score(Node* node, double score, int team)
 {
 	if (!node)
 		return;
@@ -365,38 +400,4 @@ void backpropogate_score(Node* node, double score, int team)
 	}
 	node->visited++;
 	backpropogate_score(node->parent, score, team);
-}
-
-static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player)
-{
-    Node* node = malloc(sizeof(Node));
-    
-    node->parent = parent;
-    node->visited = 0;
-	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
-    	node->score[i] = 0.0;
-    node->chosen_player = chosen_player;
-    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
-						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
-
-    return node;
-}
-
-static void free_node(Node* node)
-{
-	if (!node)
-		return;
-    node->parent = NULL;
-    free_node(node->children[QB]);
-    free_node(node->children[RB]);
-    free_node(node->children[WR]);
-    free_node(node->children[TE]);
-    free_node(node->children[K]);
-    free_node(node->children[DST]);
-    free_node(node->children[FLEX]);
-    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
-						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
-
-    free(node);
-    node = NULL;
 }
