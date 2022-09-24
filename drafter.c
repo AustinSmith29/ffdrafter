@@ -107,6 +107,8 @@ static void make_pick(SearchContext* context, const PlayerRecord* player)
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
 //
+// Uses projected_points z_score as a heuristic for simulation pick.
+//
 // @param thinking_time: Time in seconds the algorithm has before it returns an answer
 // @param pick: Initializes the search to think we are at this pick number
 // @param taken: Initializes the search to think these players are taken
@@ -357,17 +359,6 @@ void backpropogate_score(Node* node, double score, int team)
 {
 	if (!node)
 		return;
-	if (node->score < 0)
-		return;
-	//TODO: hack way to stop the score from branches that are supposed to be dead from
-	// bubbling up. Need to just make the tree have terminal leaves rather than this negative
-	// simulated score bullshit.
-	if (score < 0) {
-		node->score[team] = score;
-		node->visited++;
-		backpropogate_score(node->parent, 0, team);
-		return;
-	}
 	if (score > node->score[team])
 	{
 		node->score[team] = score;
