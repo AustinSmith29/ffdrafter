@@ -45,7 +45,9 @@ static void expand_tree(Node* node, const SearchContext* const context);
 static double simulate_score(const SearchContext* context, const Node* from_node);
 static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
 static void backpropogate_score(Node* node, double score, int team);
-static double calculate_zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS]);
+static void calculate_zscores(void);
+
+static double zscores[1000];
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
@@ -68,6 +70,15 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	// actual taken players outside of this function.
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
+    calculate_zscores();
+
+    /*
+    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
+    {
+        double score = zscores[p->id];
+        printf("%s: %lf\n", p->name, score);
+    }
+    */
 
     Node* root = create_node(NULL, NULL);
 
@@ -377,7 +388,7 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
         const PlayerRecord* player = whos_highest_projected(i, sim_taken, context->pick);
         if (player && still_required[i] > 0)
         {
-            double zscore = calculate_zscore(player, sim_taken);
+            double zscore = zscores[player->id];
             if (zscore > max_zscore)
             {
                 picked_player = player;
@@ -400,32 +411,57 @@ static void backpropogate_score(Node* node, double score, int team)
 	backpropogate_score(node->parent, score, team);
 }
 
-//TODO: We can just calculate this one time. No need to recompute.
-static double calculate_zscore(const PlayerRecord* player, Taken taken[NUMBER_OF_PICKS])
+static void calculate_zscores(void)
 {
-    // calculate mean
-    double sum = 0.0;
-    int n = 0;
-    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
+    int NUM_DRAFT_POOL[NUM_POSITIONS];
+    NUM_DRAFT_POOL[QB] = NUMBER_OF_QB * NUMBER_OF_TEAMS;
+    // Add NUMBER_OF_FLEX to position because no player actually has "FLEX" as position. But
+    // we still need to represent those players in the draft "pool"
+    NUM_DRAFT_POOL[RB] = (NUMBER_OF_RB + NUMBER_OF_FLEX) * NUMBER_OF_TEAMS;
+    NUM_DRAFT_POOL[WR] = (NUMBER_OF_WR + NUMBER_OF_FLEX) * NUMBER_OF_TEAMS;
+    NUM_DRAFT_POOL[TE] = NUMBER_OF_TE * NUMBER_OF_TEAMS;
+    NUM_DRAFT_POOL[FLEX] = NUMBER_OF_FLEX * NUMBER_OF_TEAMS;
+    NUM_DRAFT_POOL[K] = NUMBER_OF_K * NUMBER_OF_TEAMS;
+    NUM_DRAFT_POOL[DST] = NUMBER_OF_DST * NUMBER_OF_TEAMS;
+    
+    for (int i = 0; i < number_of_players; i++)
     {
-        if (p->position == player->position)
+        const PlayerRecord* player = get_player_by_id(i);
+        int pool_size = NUM_DRAFT_POOL[player->position];
+        // calculate mean
+        double sum = 0.0;
+        int n = 0;
+        for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
         {
-            sum += p->projected_points;
-            n++;
+            if (p->position == player->position)
+            {
+                sum += p->projected_points;
+                n++;
+            }
+            if (n >= pool_size)
+            {
+                break;
+            }
         }
-    }
-    double mean = sum / (double)n;
+        double mean = sum / (double)n;
 
-    // calculate standard deviation
-    double sum_of_squares = 0.0;
-    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
-    {
-        if (p->position == player->position)
+        // calculate standard deviation
+        int j = 0;
+        double sum_of_squares = 0.0;
+        for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
         {
-            sum_of_squares += pow(fabs(p->projected_points - mean), 2.0);
+            if (p->position == player->position)
+            {
+                sum_of_squares += pow(fabs(p->projected_points - mean), 2.0);
+                j++;
+            }
+            if (j >= pool_size)
+            {
+                break;
+            }
         }
-    }
-    double stddev = sqrt(sum_of_squares / n);
+        double stddev = sqrt(sum_of_squares / n);
 
-    return (player->projected_points - mean) / stddev;
+        zscores[i] = (player->projected_points - mean) / stddev;
+    }
 }

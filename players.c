@@ -9,7 +9,7 @@
 #define MAX_PLAYERS 1800 // little more than # of players on active NFL rosters (1696)
 
 static PlayerRecord players[MAX_PLAYERS];
-static int number_of_players = 0;
+int number_of_players = 0;
 
 static int codify_position_str(const char* position_str);
 int load_players(const char* csv_file)
