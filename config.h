@@ -4,6 +4,7 @@
 // DRAFT CONFIGURATION CONSTANTS (edit this and recompile to change settings)
 // =================================================================================================
 #define PLAYER_CSV_LIST "projections_2022.csv" // file that has Player Names, Positions, and Projected Points
+#define MAX_PLAYERS 1000
 
 #define NUMBER_OF_TEAMS 12
 

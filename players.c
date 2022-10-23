@@ -6,8 +6,6 @@
 #include "config.h"
 #include "players.h"
 
-#define MAX_PLAYERS 1800 // little more than # of players on active NFL rosters (1696)
-
 static PlayerRecord players[MAX_PLAYERS];
 int number_of_players = 0;
 
@@ -23,6 +21,12 @@ int load_players(const char* csv_file)
     char line[MAXLINE];
     while (fgets(line, MAXLINE, fp) != NULL)
     {
+        if (number_of_players > MAX_PLAYERS)
+        {
+            fprintf(stderr, "Cannot load any more players... Try changing MAX_PLAYERS in config.\n");
+            return -1;
+        }
+
         const char* name = strtok(line, ",");
         const char* position_str = strtok(NULL, ",");
         const char* projected_points_str = strtok(NULL, ",");
@@ -48,6 +52,7 @@ int load_players(const char* csv_file)
             .name = heap_name
         };
         players[number_of_players++] = player;
+
     }
 
     fclose(fp);
