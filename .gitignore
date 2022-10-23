@@ -1,5 +1,7 @@
 *.o
 obj/
+bin/
+build/
 tags
 *.out
 *.swp
