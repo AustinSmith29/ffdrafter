@@ -341,6 +341,18 @@ int do_command(char* command, DraftState* state)
         }
         return 0;
     }
+    else if (strcmp(token, "sim_draft") == 0)
+    {
+        while (state->pick < NUMBER_OF_PICKS)
+        {
+            const PlayerRecord* p = calculate_best_pick(state->think_time, state->pick, state->taken);
+            int team = team_with_pick(state->pick);
+            dec_team_requirements(p, state, team);
+            state->taken[state->pick++] = (Taken) { .player_id = p->id, .by_team = team };
+            fprintf(stdout, "%s\n", p->name);
+            free(p);
+        }
+    }
     else
     {
         fprintf(stderr, "%s is an unknown command\n", token);

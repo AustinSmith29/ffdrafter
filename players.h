@@ -13,6 +13,8 @@
 
 #define NUM_POSITIONS 7
 
+extern int number_of_players;
+
 typedef struct PlayerRecord {
 	unsigned int id;
 	double projected_points;

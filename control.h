@@ -37,6 +37,7 @@ typedef struct DraftState
 // to allow "bench" players... they don't add to score
 // LOAD;filename --> loads and resumes draft that was previously started
 // SAVE;filename --> saves draft
+// SIM_DRAFT --> Computer picks every pick.
 // EXIT
 int do_command(char* command, DraftState* state);
 
