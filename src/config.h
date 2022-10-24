@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <stdbool.h>
+
 // DRAFT CONFIGURATION CONSTANTS (edit this and recompile to change settings)
 // =================================================================================================
 #define PLAYER_CSV_LIST "projections_2022.csv" // file that has Player Names, Positions, and Projected Points
@@ -23,6 +25,37 @@
 		NUMBER_OF_FLEX + \
 		NUMBER_OF_K + \
 		NUMBER_OF_DST))
+
+#define MAX_SLOT_NAME_LENGTH 10
+#define MAX_NUM_SLOTS 15
+
+/* A slot is a roster position that needs to be filled
+ * in a lineup.
+ *
+ * If a Slot has flex defined than it can hold players
+ * of the slot types listed in flex. 
+*/
+typedef struct Slot
+{
+    int num_required;
+    char name[MAX_SLOT_NAME_LENGTH];
+    int num_flex_options;
+    char flex[MAX_NUM_SLOTS];
+} Slot;
+
+typedef struct DraftConfig
+{
+    int num_teams;
+    int num_slots;
+    Slot slots[MAX_NUM_SLOTS];
+} Config;
+
+const Slot* get_slot(const char* name, const DraftConfig* config);
+bool is_flex_slot(const Slot* slot);
+
+void load_config(DraftConfig* config, const char* filename);
+
+// DraftConfig --> team_requirements
 
 // Sets order of first round of draft. Subsequent rounds are determined via snake draft.
 // If you want the computer to make the optimal pick for this player, set the Controller as "AI".

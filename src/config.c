@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "config.h"
 #include "players.h"
@@ -21,7 +22,49 @@ const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
 };
 
 static int SNAKE_DRAFT[NUMBER_OF_PICKS];
-void build_snake_order()
+
+static void build_snake_order(void);
+
+const Slot* get_slot(const char* name, const DraftConfig* config)
+{
+    Slot* slot;
+    for (int i = 0; i < config->num_slots; i++)
+    {
+        if (strcmp(config->slots[i], name) == 0)
+            return config->slots[i];
+    }
+    return NULL;
+}
+
+bool is_flex_slot(const Slot* slot)
+{
+    return slot->num_flex_options > 0;
+}
+
+void load_config(DraftConfig* config, const char* filename)
+{
+}
+
+int team_with_pick(int pick)
+{
+	return SNAKE_DRAFT[pick];
+}
+
+void draftbot_initialize()
+{
+    if (load_players(PLAYER_CSV_LIST) < 0) {
+        printf("Fatal error:  Could not load players!\n");
+        exit(1);
+    }
+	build_snake_order();
+}
+
+void draftbot_destroy()
+{
+    unload_players();
+}
+
+static void build_snake_order(void)
 {
 	int snake = 0;
 	int n_rounds = NUMBER_OF_PICKS / NUMBER_OF_TEAMS;
@@ -51,23 +94,4 @@ void build_snake_order()
 	// i.e if Connor trades Nick for 1st overall pick before the draft:
 	// SNAKE_DRAFT[0] = 1
 	// SNAKE_DRAFT[1] = 0
-}
-
-int team_with_pick(int pick)
-{
-	return SNAKE_DRAFT[pick];
-}
-
-void draftbot_initialize()
-{
-    if (load_players("projections_2022.csv") < 0) {
-        printf("Fatal error:  Could not load players!\n");
-        exit(1);
-    }
-	build_snake_order();
-}
-
-void draftbot_destroy()
-{
-    unload_players();
 }
