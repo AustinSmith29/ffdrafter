@@ -48,7 +48,7 @@ typedef struct DraftConfig
     int num_teams;
     int num_slots;
     Slot slots[MAX_NUM_SLOTS];
-} Config;
+} DraftConfig;
 
 const Slot* get_slot(const char* name, const DraftConfig* config);
 bool is_flex_slot(const Slot* slot);

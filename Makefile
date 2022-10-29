@@ -17,7 +17,8 @@ CFLAGS := $(INC_FLAGS) -MMD -MP -Wall -g
 LDLIBS = -lm
 
 $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
-	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CC) `pkg-config --cflags libconfig` $(OBJS) -o $@ $(LDFLAGS) $(LDLIBS) \
+		`pkg-config --libs libconfig`
 	cp $(BUILD_DIR)/$(TARGET_EXEC) .
 
 $(BUILD_DIR)/%.c.o: %.c

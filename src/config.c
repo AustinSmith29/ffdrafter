@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libconfig.h>
 
 #include "config.h"
 #include "players.h"
@@ -30,8 +31,8 @@ const Slot* get_slot(const char* name, const DraftConfig* config)
     Slot* slot;
     for (int i = 0; i < config->num_slots; i++)
     {
-        if (strcmp(config->slots[i], name) == 0)
-            return config->slots[i];
+        if (strcmp(config->slots[i].name, name) == 0)
+            return &config->slots[i];
     }
     return NULL;
 }
