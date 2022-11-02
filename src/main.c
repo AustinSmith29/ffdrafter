@@ -3,10 +3,12 @@
 #include <string.h>
 
 #include "control.h"
+#include "config.h"
 
 int main(int argc, char *argv[])
 {
-
+    DraftConfig config;
+    int res = load_config(&config, "fanduel_4_player.cfg");
 	draftbot_initialize();
 
     DraftState state;

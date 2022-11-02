@@ -40,7 +40,7 @@ typedef struct Slot
     int num_required;
     char name[MAX_SLOT_NAME_LENGTH];
     int num_flex_options;
-    char flex[MAX_NUM_SLOTS];
+    int flex[MAX_NUM_SLOTS];
 } Slot;
 
 typedef struct DraftConfig
@@ -53,7 +53,7 @@ typedef struct DraftConfig
 const Slot* get_slot(const char* name, const DraftConfig* config);
 bool is_flex_slot(const Slot* slot);
 
-void load_config(DraftConfig* config, const char* filename);
+int load_config(DraftConfig* config, const char* filename);
 
 // DraftConfig --> team_requirements
 
