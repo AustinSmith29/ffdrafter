@@ -10,15 +10,18 @@
 #include "drafter.h"
 #include "config.h"
 
+static int NUMBER_OF_TEAMS = 0;
+static int NUM_POSITIONS = 0;
+static int NUMBER_OF_PICKS = 0;
+
 typedef struct Node
 {
     int visited;
-    double score[NUMBER_OF_TEAMS];
+    double score[];
     const struct PlayerRecord* chosen_player;
     struct Node* parent;
-	struct Node* children[NUM_POSITIONS];
+	struct Node* children[];
 } Node;
-
 
 // We will be going down "experimental" branches of draft trees
 // and will need a way to keep track/reset search state when
@@ -28,7 +31,7 @@ typedef struct SearchContext
 {
 	Node* node;
 	int pick;
-	Taken taken[NUMBER_OF_PICKS];
+	Taken taken[];
 	int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
 } SearchContext;
 
@@ -57,8 +60,18 @@ static double zscores[1000];
 // @param thinking_time: Time in seconds the algorithm has before it returns an answer
 // @param pick: Initializes the search to think we are at this pick number
 // @param taken: Initializes the search to think these players are taken
-const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken[])
+// @param draft_config: Specifies the slots and number_of_teams in draft
+const PlayerRecord* calculate_best_pick(
+    int thinking_time, 
+    int pick, 
+    Taken taken[], 
+    const DraftConfig* draft_config)
 {
+    // Set globals from values in draft_config
+    NUM_POSITIONS = draft_config->num_slots;
+    NUMBER_OF_TEAMS = draft_config->num_teams;
+    NUMBER_OF_PICKS = get_number_of_picks(draft_config);
+
 	srand(time(NULL));
     clock_t start_time_s = clock() / CLOCKS_PER_SEC;
     if (start_time_s < 0)
@@ -71,14 +84,6 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
     calculate_zscores();
-
-    /*
-    for (const PlayerRecord* p = players_begin(); p != players_end(); p = players_next())
-    {
-        double score = zscores[p->id];
-        printf("%s: %lf\n", p->name, score);
-    }
-    */
 
     Node* root = create_node(NULL, NULL);
 
@@ -108,7 +113,8 @@ const PlayerRecord* calculate_best_pick(int thinking_time, int pick, Taken taken
                 {
                     max_depth = current_context->pick;
                 }
-                backpropogate_score(node, score, team_with_pick(current_context->pick)); // Also increments node's "visited" member as score propogates
+                // Also increments node's "visited" member as score back-propogates
+                backpropogate_score(node, score, team_with_pick(current_context->pick)); 
             }
 			reset_search_context_to(MASTER_CONTEXT, current_context);
         }
