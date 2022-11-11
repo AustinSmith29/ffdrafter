@@ -54,6 +54,7 @@ const Slot* get_slot(const char* name, const DraftConfig* config);
 bool is_flex_slot(const Slot* slot);
 
 int load_config(DraftConfig* config, const char* filename);
+int get_number_of_picks(const DraftConfig* config);
 
 // DraftConfig --> team_requirements
 

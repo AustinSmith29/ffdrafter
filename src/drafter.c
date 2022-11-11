@@ -10,17 +10,25 @@
 #include "drafter.h"
 #include "config.h"
 
+// Globals which are set by the corresponding values
+// in the passed DraftConfig to calculate_best_pick.
+// These values get set at the beginning of calculate_best_pick and
+// SHOULD NOT BE MODIFIED.
 static int NUMBER_OF_TEAMS = 0;
-static int NUM_POSITIONS = 0;
+static int NUMBER_OF_SLOTS = 0;
 static int NUMBER_OF_PICKS = 0;
+
+// Zscores get calculated and stashed in this array at beginning 
+// of calculate_best_pick.
+static double zscores[1000];
 
 typedef struct Node
 {
     int visited;
-    double score[];
-    const struct PlayerRecord* chosen_player;
-    struct Node* parent;
-	struct Node* children[];
+    double* scores;
+    const PlayerRecord* chosen_player;
+    Node* parent;
+	Node* children;
 } Node;
 
 // We will be going down "experimental" branches of draft trees
@@ -31,16 +39,17 @@ typedef struct SearchContext
 {
 	Node* node;
 	int pick;
-	Taken taken[];
-	int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
+	Taken* taken;
+    int* team_requirements[];
+	// int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
 } SearchContext;
 
-static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player);
+static Node* create_node(Node* parent, const PlayerRecord* chosen_player);
 static void free_node(Node *node);
 static SearchContext* create_search_context(int pick, const Taken* taken);
 static void destroy_search_context(SearchContext* context);
 static void reset_search_context_to(const SearchContext* original, SearchContext* delta);
-static Node* select_child(const Node* const parent, int team);
+static Node* select_child(const Node* parent, int team);
 static double calculate_ucb(const Node* node, int team);
 static bool is_leaf(const Node* node);
 static void make_pick(SearchContext* context, const PlayerRecord* player);
@@ -50,7 +59,6 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 static void backpropogate_score(Node* node, double score, int team);
 static void calculate_zscores(void);
 
-static double zscores[1000];
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
@@ -68,9 +76,10 @@ const PlayerRecord* calculate_best_pick(
     const DraftConfig* draft_config)
 {
     // Set globals from values in draft_config
-    NUM_POSITIONS = draft_config->num_slots;
+    NUMBER_OF_SLOTS = draft_config->num_slots;
     NUMBER_OF_TEAMS = draft_config->num_teams;
     NUMBER_OF_PICKS = get_number_of_picks(draft_config);
+    calculate_zscores();
 
 	srand(time(NULL));
     clock_t start_time_s = clock() / CLOCKS_PER_SEC;
@@ -79,11 +88,10 @@ const PlayerRecord* calculate_best_pick(
         return NULL;
     }
 
-	// Reflects the real state of the draft i.e Actual current pick in the draft and
+	// MASTER_CONTEXT reflects the real state of the draft i.e Actual current pick in the draft and
 	// actual taken players outside of this function.
 	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
 	SearchContext* current_context = create_search_context(pick, taken);
-    calculate_zscores();
 
     Node* root = create_node(NULL, NULL);
 
@@ -148,17 +156,20 @@ const PlayerRecord* calculate_best_pick(
     return chosen_player;
 }
 
-static Node* create_node(Node* parent, const struct PlayerRecord* const chosen_player)
+static Node* create_node(Node* parent, const PlayerRecord* chosen_player)
 {
     Node* node = malloc(sizeof(Node));
-    
+
     node->parent = parent;
     node->visited = 0;
-	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
-    	node->score[i] = 0.0;
     node->chosen_player = chosen_player;
-    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
-						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
+    node->scores = malloc(sizeof(double) * NUMBER_OF_TEAMS);
+    node->children = malloc(sizeof(Node) * NUMBER_OF_SLOTS);
+
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
+    	node->scores[i] = 0.0;
+    for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+        node->children[i] = NULL;
 
     return node;
 }
@@ -167,29 +178,25 @@ static void free_node(Node* node)
 {
 	if (!node)
 		return;
-    node->parent = NULL;
-    free_node(node->children[QB]);
-    free_node(node->children[RB]);
-    free_node(node->children[WR]);
-    free_node(node->children[TE]);
-    free_node(node->children[K]);
-    free_node(node->children[DST]);
-    free_node(node->children[FLEX]);
-    node->children[QB] = node->children[RB] = node->children[WR] = node->children[TE] = \
-						 node->children[K] = node->children[DST] = node->children[FLEX] = NULL;
+
+    free(node->scores);
+
+    for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+        free_node(node->children[i]);
 
     free(node);
-    node = NULL;
 }
 
 static SearchContext* create_search_context(int pick, const Taken* taken)
 {
-	SearchContext* context = malloc(sizeof(SearchContext));
+	SearchContext* context = malloc(sizeof(SearchContext) + sizeof(int*) * NUMBER_OF_TEAMS);
 	context->node = NULL;
 	context->pick = pick;
+    context->taken = malloc(sizeof(Taken) * NUMBER_OF_PICKS);
 	memcpy(context->taken, taken, NUMBER_OF_PICKS * sizeof(Taken));
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
 	{
+        context->team_requirements[i] = malloc(sizeof(int) * NUMBER_OF_SLOTS);
 		context->team_requirements[i][QB] = NUMBER_OF_QB;
 		context->team_requirements[i][RB] = NUMBER_OF_RB;
 		context->team_requirements[i][WR] = NUMBER_OF_WR;
@@ -232,12 +239,12 @@ static void reset_search_context_to(const SearchContext* original, SearchContext
 	memcpy(delta->team_requirements, original->team_requirements, NUMBER_OF_TEAMS * NUM_POSITIONS * sizeof(int));
 }
 
-static Node* select_child(const Node* const parent, int team)
+static Node* select_child(const Node* parent, int team)
 {
 	assert(parent != NULL);
 	Node* max_score_node = NULL;
 	double max_score = 0.0;
-	for (int i = 0; i < NUM_POSITIONS; i++) 
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++) 
 	{
 		Node* child = parent->children[i];
 		if (!child) 
@@ -262,20 +269,20 @@ static double calculate_ucb(const Node* node, int team)
 {
 	assert(node != NULL);
 	double total = 0.0;
-	for (int i = 0; i < NUM_POSITIONS; i++) 
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++) 
 	{
 		const Node* child = node->children[i];
 		if (child)
-			total += child->score[team];
+			total += child->scores[team];
 	}
-	double mean_score = total / NUM_POSITIONS;
+	double mean_score = total / NUMBER_OF_SLOTS;
 	return mean_score + 2 * sqrt(log(node->parent->visited) / node->visited);
 }
 
 static bool is_leaf(const Node* node)
 {
 	assert(node != NULL);
-    for (int i = 0; i < NUM_POSITIONS; i++)
+    for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
         if (node->children[i])
         {
@@ -389,7 +396,7 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
 
     const PlayerRecord* picked_player = NULL;
     double max_zscore = 0.0;
-    for (int i = 0; i < NUM_POSITIONS; i++)
+    for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
         const PlayerRecord* player = whos_highest_projected(i, sim_taken, context->pick);
         if (player && still_required[i] > 0)
@@ -409,9 +416,9 @@ static void backpropogate_score(Node* node, double score, int team)
 {
 	if (!node)
 		return;
-	if (score > node->score[team])
+	if (score > node->scores[team])
 	{
-		node->score[team] = score;
+		node->scores[team] = score;
 	}
 	node->visited++;
 	backpropogate_score(node->parent, score, team);
