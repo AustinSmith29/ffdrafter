@@ -27,8 +27,8 @@ typedef struct Node
     int visited;
     double* scores;
     const PlayerRecord* chosen_player;
-    Node* parent;
-	Node* children;
+    struct Node* parent;
+	struct Node* children[];
 } Node;
 
 // We will be going down "experimental" branches of draft trees
@@ -46,18 +46,32 @@ typedef struct SearchContext
 
 static Node* create_node(Node* parent, const PlayerRecord* chosen_player);
 static void free_node(Node *node);
-static SearchContext* create_search_context(int pick, const Taken* taken);
+
+static SearchContext* create_search_context(int pick, const Taken* taken, const DraftConfig* config);
 static void destroy_search_context(SearchContext* context);
 static void reset_search_context_to(const SearchContext* original, SearchContext* delta);
+
 static Node* select_child(const Node* parent, int team);
 static double calculate_ucb(const Node* node, int team);
 static bool is_leaf(const Node* node);
-static void make_pick(SearchContext* context, const PlayerRecord* player);
-static void expand_tree(Node* node, const SearchContext* const context);
-static double simulate_score(const SearchContext* context, const Node* from_node);
-static const PlayerRecord* sim_pick_for_team(const SearchContext* const context);
+
+// Decrement number of still required from a team's roster requirements based on the player's position and the
+// remaining slots available on team's roster. Will automatically fill a FLEX slot if necessary. Does NOT affect
+// the context's "taken" state or increment the current context's pick.
+static void fill_slot(SearchContext* context, const PlayerRecord* player, int team, const DraftConfig* config);
+
+// Marks player as taken in the given context, calls fill_slot to update the team's roster requirements, and
+// increments the context's pick state.
+static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config);
+
+// Creates next level of tree from the passed leaf node. Creates NUMBER_OF_SLOTS new children where each child
+// represents picking the player at that slot with the highest point total.
+static void expand_tree(Node* node, const SearchContext* context);
+
+static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config);
+static const PlayerRecord* sim_pick_for_team(const SearchContext* context);
 static void backpropogate_score(Node* node, double score, int team);
-static void calculate_zscores(void);
+static void calculate_zscores(const DraftConfig* config);
 
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
@@ -79,7 +93,7 @@ const PlayerRecord* calculate_best_pick(
     NUMBER_OF_SLOTS = draft_config->num_slots;
     NUMBER_OF_TEAMS = draft_config->num_teams;
     NUMBER_OF_PICKS = get_number_of_picks(draft_config);
-    calculate_zscores();
+    calculate_zscores(draft_config);
 
 	srand(time(NULL));
     clock_t start_time_s = clock() / CLOCKS_PER_SEC;
@@ -90,8 +104,8 @@ const PlayerRecord* calculate_best_pick(
 
 	// MASTER_CONTEXT reflects the real state of the draft i.e Actual current pick in the draft and
 	// actual taken players outside of this function.
-	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken);
-	SearchContext* current_context = create_search_context(pick, taken);
+	SearchContext* MASTER_CONTEXT = create_search_context(pick, taken, draft_config);
+	SearchContext* current_context = create_search_context(pick, taken, draft_config);
 
     Node* root = create_node(NULL, NULL);
 
@@ -107,7 +121,7 @@ const PlayerRecord* calculate_best_pick(
         }
         if (node->parent != NULL)
         {
-            make_pick(current_context, node->chosen_player);
+            make_pick(current_context, node->chosen_player, draft_config);
             node->visited++;
         }
         if (is_leaf(node))
@@ -116,7 +130,7 @@ const PlayerRecord* calculate_best_pick(
             if (node->parent != NULL) // We don't calculate score for root
             {
                 current_context->pick--;
-                double score = simulate_score(current_context, node);
+                double score = simulate_score(current_context, node, draft_config);
                 if (current_context->pick > max_depth)
                 {
                     max_depth = current_context->pick;
@@ -140,9 +154,9 @@ const PlayerRecord* calculate_best_pick(
 	int team = team_with_pick(pick);
 	for (int i = 0; i < NUM_POSITIONS; i++)
 	{
-		if (root->children[i] && root->children[i]->score[team] > max)
+		if (root->children[i] && root->children[i]->scores[team] > max)
 		{
-			max = root->children[i]->score[team];
+			max = root->children[i]->scores[team];
 			child = i;
 		}
 	}
@@ -158,13 +172,14 @@ const PlayerRecord* calculate_best_pick(
 
 static Node* create_node(Node* parent, const PlayerRecord* chosen_player)
 {
-    Node* node = malloc(sizeof(Node));
+    Node* node = malloc(sizeof(Node) + NUMBER_OF_SLOTS * sizeof(Node*));
 
     node->parent = parent;
     node->visited = 0;
     node->chosen_player = chosen_player;
     node->scores = malloc(sizeof(double) * NUMBER_OF_TEAMS);
-    node->children = malloc(sizeof(Node) * NUMBER_OF_SLOTS);
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+    	node->children[i] = malloc(sizeof(Node));
 
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
     	node->scores[i] = 0.0;
@@ -187,7 +202,7 @@ static void free_node(Node* node)
     free(node);
 }
 
-static SearchContext* create_search_context(int pick, const Taken* taken)
+static SearchContext* create_search_context(int pick, const Taken* taken, const DraftConfig* config)
 {
 	SearchContext* context = malloc(sizeof(SearchContext) + sizeof(int*) * NUMBER_OF_TEAMS);
 	context->node = NULL;
@@ -197,29 +212,17 @@ static SearchContext* create_search_context(int pick, const Taken* taken)
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
 	{
         context->team_requirements[i] = malloc(sizeof(int) * NUMBER_OF_SLOTS);
-		context->team_requirements[i][QB] = NUMBER_OF_QB;
-		context->team_requirements[i][RB] = NUMBER_OF_RB;
-		context->team_requirements[i][WR] = NUMBER_OF_WR;
-		context->team_requirements[i][TE] = NUMBER_OF_TE;
-		context->team_requirements[i][FLEX] = NUMBER_OF_FLEX;
-		context->team_requirements[i][K] = NUMBER_OF_K;
-		context->team_requirements[i][DST] = NUMBER_OF_DST;
+		for (int j = 0; j < NUMBER_OF_SLOTS; j++)
+		{
+			context->team_requirements[i][j] = config->slots[j].num_required;
+		}
 	}
 	// Loop through taken and mark off those players from team_requirements
-	// Note: An oddity is that we first decrement FLEX for RB/WR as it makes
-	// it easier to handle team position requirements.
-	// TODO: Duplication here and in make_picks looks like code smell.
 	for (int i = 0; i < pick; i++) 
 	{
 		Taken t = taken[i];
 		const PlayerRecord* player = get_player_by_id(t.player_id);
-        if (context->team_requirements[t.by_team][player->position] > 0)
-        {
-			context->team_requirements[t.by_team][player->position]--;
-        }
-        else if ((player->position == RB || player->position == WR) && (context->team_requirements[t.by_team][FLEX] > 0)) {
-			context->team_requirements[t.by_team][FLEX]--;
-		}
+		fill_slot(context, player, t.by_team, config);
 	}
 	
 	return context;
@@ -227,8 +230,10 @@ static SearchContext* create_search_context(int pick, const Taken* taken)
 
 static void destroy_search_context(SearchContext* context)
 {
+	free(context->taken);
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+		free(context->team_requirements[i]);
 	free(context);
-	context = NULL;
 }
 
 static void reset_search_context_to(const SearchContext* original, SearchContext* delta)
@@ -236,7 +241,8 @@ static void reset_search_context_to(const SearchContext* original, SearchContext
 	delta->node = original->node;
 	delta->pick = original->pick;
 	memcpy(delta->taken, original->taken, NUMBER_OF_PICKS * sizeof(Taken));
-	memcpy(delta->team_requirements, original->team_requirements, NUMBER_OF_TEAMS * NUM_POSITIONS * sizeof(int));
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+		memcpy(delta->team_requirements[i], original->team_requirements[i], NUMBER_OF_SLOTS * sizeof(int));
 }
 
 static Node* select_child(const Node* parent, int team)
@@ -292,62 +298,61 @@ static bool is_leaf(const Node* node)
     return true;
 }
 
-static void make_pick(SearchContext* context, const PlayerRecord* player)
+static void fill_slot(SearchContext* context, const PlayerRecord* player, int team, const DraftConfig* config)
+{
+	if (context->team_requirements[team][player->position] > 0)
+	{
+		context->team_requirements[team][player->position]--;
+	}
+	// Decrement first available flex position that fits this player's position
+	else
+	{
+		for (int j = 0; j < NUMBER_OF_SLOTS; j++)
+		{
+			if (
+				is_flex_slot(&config->slots[j]) && 
+				context->team_requirements[team][j] > 0 &&
+				flex_includes_position(&config->slots[j], player->position)
+			   )
+			{
+				context->team_requirements[team][j]--;
+			}
+		}
+	}
+}
+
+static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config)
 {
 	int team = team_with_pick(context->pick);
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
-
-    if (context->team_requirements[team][player->position] > 0)
-    {
-		context->team_requirements[team][player->position]--;
-    }
-    else if ((player->position == RB || player->position == WR) && (context->team_requirements[team][FLEX] > 0))
-	{
-		context->team_requirements[team][FLEX]--;
-	}
-
+	fill_slot(context, player, team, config);
     context->pick++;
 }
 
-static void expand_tree(Node* const node, const SearchContext* const context)
+static void expand_tree(Node* const node, const SearchContext* context)
 {
 	assert(node != NULL);
     int pick = context->pick;
 	const int* requirements = context->team_requirements[team_with_pick(pick)];
-
-	const PlayerRecord* qb = whos_highest_projected(QB, context->taken, pick);	
-	node->children[QB] = (qb != NULL && requirements[QB] > 0) ? create_node(node, qb) : NULL;
-
-	const PlayerRecord* rb = whos_highest_projected(RB, context->taken, pick);	
-	node->children[RB] = (rb != NULL && requirements[RB] > 0) ? create_node(node, rb) : NULL;
-
-	const PlayerRecord* wr = whos_highest_projected(WR, context->taken, pick);	
-	node->children[WR] = (wr != NULL && requirements[WR] > 0) ? create_node(node, wr) : NULL;
-
-	const PlayerRecord* te = whos_highest_projected(TE, context->taken, pick);	
-	node->children[TE] = (te != NULL && requirements[TE] > 0) ? create_node(node, te) : NULL;
-
-	const PlayerRecord* k = whos_highest_projected(K, context->taken, pick);	
-	node->children[K] = (k != NULL && requirements[K] > 0) ? create_node(node, k) : NULL;
-
-	const PlayerRecord* dst = whos_highest_projected(DST, context->taken, pick);	
-	node->children[DST] = (dst != NULL && requirements[DST] > 0) ? create_node(node, dst) : NULL;
-
-	const PlayerRecord* flex = whos_highest_projected(FLEX, context->taken, pick);
-    node->children[FLEX] = (flex != NULL && requirements[FLEX] > 0) ? create_node(node, flex) : NULL;
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+	{
+		const PlayerRecord* player;
+		if (requirements[i] > 0 && (player = whos_highest_projected(i, context->taken, pick)) != NULL)
+			node->children[i] = create_node(node, player);
+	}
 }
 
-static double simulate_score(const SearchContext* context, const Node* from_node)
+static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config)
 {
 	// Copy search context so we can simulate in isolation
-	SearchContext* sim_search_context = create_search_context(context->pick, context->taken);
+	SearchContext* sim_search_context = create_search_context(context->pick, context->taken, config);
 	reset_search_context_to(context, sim_search_context);
 
 	unsigned int drafting_team = team_with_pick(context->pick);
 
 	// Assume pick from from_node happened and sim remaining rounds
-	make_pick(sim_search_context, from_node->chosen_player);
+	make_pick(sim_search_context, from_node->chosen_player, config);
 
 	// go up branch to calculate real cumultive score to this point
 	double score = 0.0;
@@ -382,14 +387,14 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 			score += player->projected_points;
 		}
 
-		make_pick(sim_search_context, player);
+		make_pick(sim_search_context, player, config);
 	}
 
 	destroy_search_context(sim_search_context);
 	return score;
 }
 
-static const PlayerRecord* sim_pick_for_team(const SearchContext* const context)
+static const PlayerRecord* sim_pick_for_team(const SearchContext* context)
 {
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
@@ -424,18 +429,16 @@ static void backpropogate_score(Node* node, double score, int team)
 	backpropogate_score(node->parent, score, team);
 }
 
-static void calculate_zscores(void)
+static void calculate_zscores(const DraftConfig* config)
 {
-    int NUM_DRAFT_POOL[NUM_POSITIONS];
-    NUM_DRAFT_POOL[QB] = NUMBER_OF_QB * NUMBER_OF_TEAMS;
-    // Add NUMBER_OF_FLEX to position because no player actually has "FLEX" as position. But
-    // we still need to represent those players in the draft "pool"
-    NUM_DRAFT_POOL[RB] = (NUMBER_OF_RB + NUMBER_OF_FLEX) * NUMBER_OF_TEAMS;
-    NUM_DRAFT_POOL[WR] = (NUMBER_OF_WR + NUMBER_OF_FLEX) * NUMBER_OF_TEAMS;
-    NUM_DRAFT_POOL[TE] = NUMBER_OF_TE * NUMBER_OF_TEAMS;
-    NUM_DRAFT_POOL[FLEX] = NUMBER_OF_FLEX * NUMBER_OF_TEAMS;
-    NUM_DRAFT_POOL[K] = NUMBER_OF_K * NUMBER_OF_TEAMS;
-    NUM_DRAFT_POOL[DST] = NUMBER_OF_DST * NUMBER_OF_TEAMS;
+	//TODO: Figure out what to do on FLEX positions.
+	//TODO: Fix PlayerRecord iterators so we can just do double loop.
+	// Find the "draftable pool", meaning TODO (finish comment cuz this be important)
+    int* NUM_DRAFT_POOL = malloc(sizeof(int) * NUMBER_OF_SLOTS);
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+	{
+		NUM_DRAFT_POOL[i] = config->slots[i].num_required * NUMBER_OF_TEAMS;
+	}
     
     for (int i = 0; i < number_of_players; i++)
     {
@@ -477,4 +480,5 @@ static void calculate_zscores(void)
 
         zscores[i] = (player->projected_points - mean) / stddev;
     }
+	free(NUM_DRAFT_POOL);
 }

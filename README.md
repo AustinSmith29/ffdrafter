@@ -2,7 +2,7 @@
 FFDrafter is an engine to make optimal fantasy picks to maximize the amount of fantasy points
 for a team.
 
-## Usage
+## Engine Control
 ffdrafter communicates through standard input. Commands that accept arguments are split using ';'.
 * `think_pick` --> Returns the player the engine thinks is the optimal pick in the current draft state.
 * `make_pick;[player_name]` --> Adds the player to the roster of the team currently picking.

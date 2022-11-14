@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,30 +7,13 @@
 #include "config.h"
 #include "players.h"
 
-const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2] = {
-//  {Team Name, Controller}
-    {"Nick Scardina", "AI"},
-    {"Connor Hetterich", "AI"},
-    {"Richard Kroupa", "AI"},
-    {"Matt Everhart", "AI"},
-    {"Austin Smith", "AI"},
-    {"Christian Photos", "AI"},
-    {"Daniel Rocco", "AI"},
-    {"Alex Scardina", "AI"},
-    {"Tyler Strong", "AI"},
-    {"Liam Bramley", "AI"},
-    {"Steven Sbash", "AI"},
-    {"Cameron Urfer", "AI"}
-};
+static int* SNAKE_DRAFT_PICKS = NULL;
 
-static int SNAKE_DRAFT[NUMBER_OF_PICKS];
-
-static void build_snake_order(void);
+static void build_snake_order(int n_picks, int n_teams);
 static int find_slot_index(const char* position, const Slot* slots, int num_slots);
 
 const Slot* get_slot(const char* name, const DraftConfig* config)
 {
-    Slot* slot;
     for (int i = 0; i < config->num_slots; i++)
     {
         if (strncmp(config->slots[i].name, name, MAX_SLOT_NAME_LENGTH) == 0)
@@ -41,6 +25,17 @@ const Slot* get_slot(const char* name, const DraftConfig* config)
 bool is_flex_slot(const Slot* slot)
 {
     return slot->num_flex_options > 0;
+}
+
+bool flex_includes_position(const Slot* slot, int position)
+{
+	assert(is_flex_slot(slot));
+	for (int i = 0; i < slot->num_flex_options; i++)
+	{
+		if (slot->flex[i] == position)
+			return true;
+	}
+	return false;
 }
 
 int load_config(DraftConfig* draft, const char* filename)
@@ -73,7 +68,7 @@ int load_config(DraftConfig* draft, const char* filename)
     int slot_count = config_setting_length(setting);
     if (slot_count > MAX_NUM_SLOTS)
     {
-        fprintf(stderr, "Error: There are %d slots! The limit is %n!\n", slot_count, MAX_NUM_SLOTS);
+        fprintf(stderr, "Error: There are %d slots! The limit is %d!\n", slot_count, MAX_NUM_SLOTS);
         return -1;
     }
     draft->num_slots = slot_count;
@@ -123,12 +118,23 @@ int load_config(DraftConfig* draft, const char* filename)
     }
 
     config_destroy(&config);
+	build_snake_order(get_number_of_picks(draft), draft->num_teams);
     return 0;
+}
+
+int get_number_of_picks(const DraftConfig* config)
+{
+	int players_per_team = 0;
+	for (int i = 0; i < config->num_slots; i++)
+	{
+		players_per_team += config->slots[i].num_required;
+	}
+	return players_per_team * config->num_teams;
 }
 
 int team_with_pick(int pick)
 {
-	return SNAKE_DRAFT[pick];
+	return SNAKE_DRAFT_PICKS[pick];
 }
 
 void draftbot_initialize()
@@ -137,33 +143,39 @@ void draftbot_initialize()
         fprintf(stderr, "Fatal error:  Could not load players!\n");
         exit(1);
     }
-	build_snake_order();
 }
 
 void draftbot_destroy()
 {
     unload_players();
+	free(SNAKE_DRAFT_PICKS);
 }
 
-static void build_snake_order(void)
+static void build_snake_order(int n_picks, int n_teams)
 {
+	if (SNAKE_DRAFT_PICKS != NULL)
+	{
+		free(SNAKE_DRAFT_PICKS);
+		SNAKE_DRAFT_PICKS = NULL;
+	}
+	SNAKE_DRAFT_PICKS = malloc(n_picks * n_teams * sizeof(int));
 	int snake = 0;
-	int n_rounds = NUMBER_OF_PICKS / NUMBER_OF_TEAMS;
+	int n_rounds = n_picks / n_teams;
 	for (int i = 0; i < n_rounds; i++) {
-		int round_start_pick = i * NUMBER_OF_TEAMS;
+		int round_start_pick = i * n_teams;
 		if (!snake)
 		{
-			for (int j = 0; j < NUMBER_OF_TEAMS; j++)
+			for (int j = 0; j < n_teams; j++)
 			{
-				SNAKE_DRAFT[round_start_pick + j] = j;	
+				SNAKE_DRAFT_PICKS[round_start_pick + j] = j;	
 			}
 		}
 		else
 		{
 			int k = 0;
-			for (int j = NUMBER_OF_TEAMS-1; j >= 0; j--, k++)
+			for (int j = n_teams-1; j >= 0; j--, k++)
 			{
-				SNAKE_DRAFT[round_start_pick + k] = j;	
+				SNAKE_DRAFT_PICKS[round_start_pick + k] = j;	
 			}
 		}
 		snake = (!snake) ? 1 : 0;

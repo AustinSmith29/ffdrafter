@@ -8,24 +8,6 @@
 #define PLAYER_CSV_LIST "projections_2022.csv" // file that has Player Names, Positions, and Projected Points
 #define MAX_PLAYERS 1000
 
-#define NUMBER_OF_TEAMS 12
-
-#define NUMBER_OF_QB  1
-#define NUMBER_OF_RB  2
-#define NUMBER_OF_WR  2
-#define NUMBER_OF_TE  1
-#define NUMBER_OF_FLEX  2
-#define NUMBER_OF_K  0
-#define NUMBER_OF_DST  0
-
-#define NUMBER_OF_PICKS  (NUMBER_OF_TEAMS * (NUMBER_OF_QB + \
-		NUMBER_OF_RB + \
-		NUMBER_OF_WR + \
-		NUMBER_OF_TE + \
-		NUMBER_OF_FLEX + \
-		NUMBER_OF_K + \
-		NUMBER_OF_DST))
-
 #define MAX_SLOT_NAME_LENGTH 10
 #define MAX_NUM_SLOTS 15
 
@@ -52,18 +34,14 @@ typedef struct DraftConfig
 
 const Slot* get_slot(const char* name, const DraftConfig* config);
 bool is_flex_slot(const Slot* slot);
+bool flex_includes_position(const Slot* slot, int position);
 
 int load_config(DraftConfig* config, const char* filename);
 int get_number_of_picks(const DraftConfig* config);
 
-// DraftConfig --> team_requirements
-
-// Sets order of first round of draft. Subsequent rounds are determined via snake draft.
-// If you want the computer to make the optimal pick for this player, set the Controller as "AI".
-// If the user wants to make the pick for that player, set the Controller as "HUMAN".
-extern const char* DRAFT_ORDER[NUMBER_OF_TEAMS][2];
 int team_with_pick(int pick);
 
 void draftbot_initialize();
 void draftbot_destroy();
+
 #endif

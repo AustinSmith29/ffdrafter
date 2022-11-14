@@ -4,12 +4,16 @@
 #include "players.h"
 #include "config.h"
 
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 0
+#define VERSION_PATCH 0
+
 typedef struct DraftState 
 {
     int pick;
-    int still_required[NUMBER_OF_TEAMS][NUM_POSITIONS];
-    Taken taken[NUMBER_OF_PICKS];
+    Taken* taken;
     int think_time;
+    int* still_required[];
 } DraftState;
 
 #define ERR_UNK_COMMAND -1
@@ -25,21 +29,23 @@ typedef struct DraftState
 //
 // Commands:
 // -----------
-// THINK_PICK
-// MAKE_PICK;Player Name
-// UNDO_PICK
-// SET_THINK_TIME;time_in_seconds
-// STATE -> Prints current_pick #, drafting team, and bot think_time.
-// HISTORY
-// ROSTER;team_id --> Shows roster slots and summation of all fantasy points for team
-// POOL;position;lim --> Shows available players at position up to lim
-// BENCH_PLAYER;Player Name --> Add player to taken list without assigning to roster (temporary hack
+// think_pick
+// make_pick;Player Name
+// undo_pick
+// set_think_time;time_in_seconds
+// state -> Prints current_pick #, drafting team, and bot think_time.
+// history
+// roster;team_id --> Shows roster slots and summation of all fantasy points for team
+// pool;position;lim --> Shows available players at position up to lim
+// bench_player;Player Name --> Add player to taken list without assigning to roster (temporary hack
 // to allow "bench" players... they don't add to score
-// LOAD;filename --> loads and resumes draft that was previously started
-// SAVE;filename --> saves draft
-// SIM_DRAFT --> Computer picks every pick.
-// EXIT
-int do_command(char* command, DraftState* state);
+// load_draft_config;filename --> loads draft configuration from given file. Resets draft state.
+// load;filename --> loads and resumes draft that was previously started
+// save;filename --> saves draft
+// sim_draft --> Computer picks every pick.
+// exit --> Quit engine
+int do_command(char* command, DraftState* state, const DraftConfig* config);
 
-void init_draftstate(DraftState* state);
+DraftState* init_draftstate(const DraftConfig* config);
+void destroy_draftstate(DraftState* state, DraftConfig* config);
 #endif

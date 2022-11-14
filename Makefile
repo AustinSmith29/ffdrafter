@@ -1,4 +1,4 @@
-TARGET_EXEC := draftbot
+TARGET_EXEC := fdraft
 
 BUILD_DIR := ./build
 SRC_DIRS := ./src
