@@ -3,7 +3,7 @@ TARGET_EXEC := fdraft
 BUILD_DIR := ./build
 SRC_DIRS := ./src
 
-SRCS := $(shell find $(SRC_DIRS) -name '*.c*')
+SRCS := $(shell find $(SRC_DIRS) -name '*.c')
 
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 
