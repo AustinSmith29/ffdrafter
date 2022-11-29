@@ -41,7 +41,6 @@ typedef struct SearchContext
 	int pick;
 	Taken* taken;
     int* team_requirements[];
-	// int team_requirements[NUMBER_OF_TEAMS][NUM_POSITIONS];
 } SearchContext;
 
 static Node* create_node(Node* parent, const PlayerRecord* chosen_player);
@@ -66,10 +65,10 @@ static void make_pick(SearchContext* context, const PlayerRecord* player, const 
 
 // Creates next level of tree from the passed leaf node. Creates NUMBER_OF_SLOTS new children where each child
 // represents picking the player at that slot with the highest point total.
-static void expand_tree(Node* node, const SearchContext* context);
+static void expand_tree(Node* node, const SearchContext* context, const DraftConfig* config);
 
 static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config);
-static const PlayerRecord* sim_pick_for_team(const SearchContext* context);
+static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config);
 static void backpropogate_score(Node* node, double score, int team);
 static void calculate_zscores(const DraftConfig* config);
 
@@ -126,7 +125,7 @@ const PlayerRecord* calculate_best_pick(
         }
         if (is_leaf(node))
         {
-            expand_tree(node, current_context);
+            expand_tree(node, current_context, draft_config);
             if (node->parent != NULL) // We don't calculate score for root
             {
                 current_context->pick--;
@@ -152,7 +151,7 @@ const PlayerRecord* calculate_best_pick(
 	double max = 0.0;
 	int child = 0;
 	int team = team_with_pick(pick);
-	for (int i = 0; i < NUM_POSITIONS; i++)
+	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
 	{
 		if (root->children[i] && root->children[i]->scores[team] > max)
 		{
@@ -178,8 +177,6 @@ static Node* create_node(Node* parent, const PlayerRecord* chosen_player)
     node->visited = 0;
     node->chosen_player = chosen_player;
     node->scores = malloc(sizeof(double) * NUMBER_OF_TEAMS);
-	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
-    	node->children[i] = malloc(sizeof(Node));
 
 	for (int i = 0; i < NUMBER_OF_TEAMS; i++) 
     	node->scores[i] = 0.0;
@@ -231,7 +228,7 @@ static SearchContext* create_search_context(int pick, const Taken* taken, const 
 static void destroy_search_context(SearchContext* context)
 {
 	free(context->taken);
-	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
 		free(context->team_requirements[i]);
 	free(context);
 }
@@ -330,7 +327,7 @@ static void make_pick(SearchContext* context, const PlayerRecord* player, const 
     context->pick++;
 }
 
-static void expand_tree(Node* const node, const SearchContext* context)
+static void expand_tree(Node* const node, const SearchContext* context, const DraftConfig* config)
 {
 	assert(node != NULL);
     int pick = context->pick;
@@ -338,7 +335,8 @@ static void expand_tree(Node* const node, const SearchContext* context)
 	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
 	{
 		const PlayerRecord* player;
-		if (requirements[i] > 0 && (player = whos_highest_projected(i, context->taken, pick)) != NULL)
+        const Slot* slot = &config->slots[i];
+		if (requirements[i] > 0 && (player = whos_highest_projected(slot, context->taken, pick)) != NULL)
 			node->children[i] = create_node(node, player);
 	}
 }
@@ -370,17 +368,19 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 
 	while (sim_search_context->pick < NUMBER_OF_PICKS)
 	{
-		const PlayerRecord* player = sim_pick_for_team(sim_search_context);
+		const PlayerRecord* player = sim_pick_for_team(sim_search_context, config);
         //TODO: I inserted this cheap return score thing because the assert below was 
         // triggering... figure out WHY. I suspect its because we are running out of players or
         // something???
         if (!player)
         {
+            destroy_search_context(sim_search_context);
             return score;
         }
 		assert(player != NULL);
 
 		// Only count score for every cycle of picks so
+        // destroy_search_context(sim_search_context);
 		// we add up score of a single team.
 		if (team_with_pick(sim_search_context->pick) == drafting_team) 
 		{
@@ -394,7 +394,7 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 	return score;
 }
 
-static const PlayerRecord* sim_pick_for_team(const SearchContext* context)
+static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config)
 {
 	const Taken* const sim_taken = context->taken;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
@@ -403,11 +403,12 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* context)
     double max_zscore = 0.0;
     for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
-        const PlayerRecord* player = whos_highest_projected(i, sim_taken, context->pick);
+        const Slot* slot = &config->slots[i];
+        const PlayerRecord* player = whos_highest_projected(slot, sim_taken, context->pick);
         if (player && still_required[i] > 0)
         {
             double zscore = zscores[player->id];
-            if (zscore > max_zscore)
+            if (!picked_player || zscore > max_zscore)
             {
                 picked_player = player;
                 max_zscore = zscore;

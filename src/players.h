@@ -1,18 +1,6 @@
 #ifndef PLAYERS_H
 #define PLAYERS_H
 
-#include "config.h"
-
-#define QB   0
-#define RB   1
-#define WR   2
-#define TE   3
-#define K    4
-#define DST  5
-#define FLEX 6
-
-#define NUM_POSITIONS 7
-
 extern int number_of_players;
 
 typedef struct PlayerRecord {
@@ -22,9 +10,12 @@ typedef struct PlayerRecord {
 	char* name;
 } PlayerRecord;
 
+struct DraftConfig;
+struct Slot;
+
 // Allocates memory and initializes players. Returns number of records loaded into players from csv_file.
 // Returns -1 on failure.
-int load_players(const char* csv_file);
+int load_players(const char* csv_file, const struct DraftConfig* config);
 
 void unload_players();
 
@@ -35,9 +26,9 @@ typedef struct Taken {
 
 int is_taken(int player_id, const Taken taken[], int passed_picks);
 
-// Gets record of the player with the highest projected points at the given position who's id is NOT in
+// Gets record of the player with the highest projected points at the given slot who's id is NOT in
 // the taken list.
-const PlayerRecord* whos_highest_projected(int position, const Taken taken[], int passed_picks);
+const PlayerRecord* whos_highest_projected(const struct Slot* slot, const Taken taken[], int passed_picks);
 
 const PlayerRecord* get_player_by_id(unsigned int player_id);
 const PlayerRecord* get_player_by_name(const char* name);

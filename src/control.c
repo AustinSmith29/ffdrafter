@@ -1,6 +1,7 @@
 #include "control.h"
 #include "drafter.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
@@ -237,6 +238,7 @@ int do_command(char* command, DraftState* state, const DraftConfig* config)
 
 DraftState* init_draftstate(const DraftConfig* config)
 {
+    assert(config != NULL);
 	DraftState* state = malloc(sizeof(DraftState) + sizeof(int*) * config->num_teams);
 
 	int n_picks = get_number_of_picks(config);
@@ -258,7 +260,7 @@ DraftState* init_draftstate(const DraftConfig* config)
 	return state;
 }
 
-void destroy_draftstate(DraftState* state, DraftConfig* config)
+void destroy_draftstate(DraftState* state, const DraftConfig* config)
 {
 	free(state->taken);
 	for (int i = 0; i < config->num_teams; i++)

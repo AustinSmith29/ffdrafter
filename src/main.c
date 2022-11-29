@@ -8,8 +8,15 @@
 int main(int argc, char *argv[])
 {
     DraftConfig config;
-    int res = load_config(&config, "nfl.cfg");
-	draftbot_initialize();
+    if (load_config(&config, "nfl.cfg") < 0) 
+    {
+        fprintf(stderr, "nfl.cfg could not be loaded. Exiting.\n");
+        return 1;
+    }
+    if (load_players(PLAYER_CSV_LIST, &config) < 0) {
+        fprintf(stderr, "Fatal error:  Could not load players!\n");
+        exit(1);
+    }
 
     DraftState* state = init_draftstate(&config);
 

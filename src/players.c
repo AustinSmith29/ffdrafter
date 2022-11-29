@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -9,8 +10,10 @@
 static PlayerRecord players[MAX_PLAYERS];
 int number_of_players = 0;
 
-static int codify_position_str(const char* position_str);
-int load_players(const char* csv_file)
+static int codify_position_str(const char* position_str, const DraftConfig* config);
+static bool does_player_match_slot(const PlayerRecord* player, const Slot* slot);
+
+int load_players(const char* csv_file, const DraftConfig* config)
 {
     FILE* fp = fopen(csv_file, "r");
     const int MAXLINE = 150;
@@ -35,10 +38,14 @@ int load_players(const char* csv_file)
             return -1;
 
         double projected_points = atof(projected_points_str);
-        int position = codify_position_str(position_str);
+        int position = codify_position_str(position_str, config);
 
-        if (position < 0)
-            return -1;
+        if (position < 0) // Either position is not in slot list so we can ignore it or position is malformed
+        {
+            fprintf(stderr, "Warning: Player %s has position %s which could not be mapped to a slot. "
+                    "Skipping player.\n", name, position_str);
+            continue;
+        }
 
         char* heap_name = malloc(strlen(name) + 1);
         if (!heap_name)
@@ -68,25 +75,6 @@ void unload_players()
     }
 }
 
-int codify_position_str(const char* position_str)
-{
-    char* x;
-    if ((x = strstr(position_str, "QB")) != NULL)
-        return QB;
-    else if ((x = strstr(position_str, "RB")) != NULL)
-        return RB;
-    else if ((x = strstr(position_str, "WR")) != NULL)
-        return WR;
-    else if ((x = strstr(position_str, "TE")) != NULL)
-        return TE;
-    else if ((x = strstr(position_str, "K")) != NULL)
-        return K;
-    else if ((x = strstr(position_str, "DST")) != NULL)
-        return DST;
-    else
-        return -1;
-}
-
 int is_taken(int player_id, const Taken taken[], int passed_picks)
 {
 	for (int i = 0; i < passed_picks; i++)
@@ -98,20 +86,22 @@ int is_taken(int player_id, const Taken taken[], int passed_picks)
 	return 0;
 }
 
-const PlayerRecord* whos_highest_projected(int position, const Taken taken[], int passed_picks)
+const PlayerRecord* whos_highest_projected(const Slot* slot, const Taken taken[], int passed_picks)
 {
     double max_score = 0.0;
     const PlayerRecord* highest = NULL;
 	const PlayerRecord* player = players_begin();
 	for (; player != players_end(); player = players_next()) 
 	{
-		if ((player->position == position || (position == FLEX && (player->position == RB || player->position == WR))) && 
-                !is_taken(player->id, taken, passed_picks) &&
-                player->projected_points > max_score)
-		{
-		    highest = player;
+        if (
+            !is_taken(player->id, taken, passed_picks) && 
+            player->projected_points > max_score &&
+            does_player_match_slot(player, slot)
+           )
+        {
+            highest = player;
             max_score = player->projected_points;
-		}
+        }
 	}
     return highest;
 }
@@ -149,4 +139,30 @@ const PlayerRecord* players_end()
 const PlayerRecord* players_next()
 {
     return &players[++iterator_counter];
+}
+
+// Maps a player's position_str to the matching slot defined in the DraftConfig.
+// Returns the index of the matching slot in the DraftConfig's slots array.
+static int codify_position_str(const char* position_str, const DraftConfig* config)
+{
+    char* x;
+    for (int i = 0; i < config->num_slots; i++)
+    {
+        if ((x = strstr(position_str, config->slots[i].name)) != NULL)
+            return i;
+    }
+    return -1;
+}
+
+static bool does_player_match_slot(const PlayerRecord* player, const Slot* slot)
+{
+    if (is_flex_slot(slot))
+    {
+        for (int i = 0; i < slot->num_flex_options; i++)
+        {
+            if (player->position == slot->flex[i])
+                return true;
+        }
+    }    
+    return player->position == slot->index;
 }

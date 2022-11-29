@@ -47,5 +47,5 @@ typedef struct DraftState
 int do_command(char* command, DraftState* state, const DraftConfig* config);
 
 DraftState* init_draftstate(const DraftConfig* config);
-void destroy_draftstate(DraftState* state, DraftConfig* config);
+void destroy_draftstate(DraftState* state, const DraftConfig* config);
 #endif

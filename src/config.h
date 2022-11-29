@@ -19,6 +19,7 @@
 */
 typedef struct Slot
 {
+    int index; // This slot's index in the DraftConfig 'slots' array. Used to link Player pos to slot
     int num_required;
     char name[MAX_SLOT_NAME_LENGTH];
     int num_flex_options;
@@ -41,7 +42,6 @@ int get_number_of_picks(const DraftConfig* config);
 
 int team_with_pick(int pick);
 
-void draftbot_initialize();
 void draftbot_destroy();
 
 #endif

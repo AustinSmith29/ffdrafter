@@ -24,6 +24,7 @@ const Slot* get_slot(const char* name, const DraftConfig* config)
 
 bool is_flex_slot(const Slot* slot)
 {
+    assert(slot != NULL);
     return slot->num_flex_options > 0;
 }
 
@@ -87,6 +88,7 @@ int load_config(DraftConfig* draft, const char* filename)
         {
             fprintf(stderr, "Config Error: Slot %i is missing 'name' or 'number_required'\n", i);
         }
+        draft->slots[i].index = i;
         draft->slots[i].num_required = slot_num_required;
         strncpy(draft->slots[i].name, slot_name, MAX_SLOT_NAME_LENGTH);
 
@@ -118,12 +120,14 @@ int load_config(DraftConfig* draft, const char* filename)
     }
 
     config_destroy(&config);
-	build_snake_order(get_number_of_picks(draft), draft->num_teams);
+    int n_picks = get_number_of_picks(draft);
+	build_snake_order(n_picks, draft->num_teams);
     return 0;
 }
 
 int get_number_of_picks(const DraftConfig* config)
 {
+    assert(config != NULL);
 	int players_per_team = 0;
 	for (int i = 0; i < config->num_slots; i++)
 	{
@@ -137,13 +141,6 @@ int team_with_pick(int pick)
 	return SNAKE_DRAFT_PICKS[pick];
 }
 
-void draftbot_initialize()
-{
-    if (load_players(PLAYER_CSV_LIST) < 0) {
-        fprintf(stderr, "Fatal error:  Could not load players!\n");
-        exit(1);
-    }
-}
 
 void draftbot_destroy()
 {
