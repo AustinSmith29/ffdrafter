@@ -39,8 +39,9 @@ bool flex_includes_position(const Slot* slot, int position)
 	return false;
 }
 
-int load_config(DraftConfig* draft, const char* filename)
+const DraftConfig* load_config(const char* filename)
 {
+    DraftConfig* draft = malloc(sizeof(DraftConfig));
     config_t config;
     config_setting_t* setting;
 
@@ -51,19 +52,19 @@ int load_config(DraftConfig* draft, const char* filename)
         fprintf(stderr, "%s:%d - %s\n", config_error_file(&config),
                 config_error_line(&config), config_error_text(&config));
         config_destroy(&config);
-        return -1;
+        return NULL;
     }
 
     if (!config_lookup_int(&config, "number_of_teams", &draft->num_teams))
     {
         fprintf(stderr, "'number_of_teams' missing from config file or malformed.\n");
-        return -1;
+        return NULL;
     }
 
     if ( (setting = config_lookup(&config, "slots") ) == NULL)
     {
         fprintf(stderr, "'slots' is missing from config file.\n");
-        return -1;
+        return NULL;
     }
 
     int slot_count = config_setting_length(setting);
@@ -122,7 +123,7 @@ int load_config(DraftConfig* draft, const char* filename)
     config_destroy(&config);
     int n_picks = get_number_of_picks(draft);
 	build_snake_order(n_picks, draft->num_teams);
-    return 0;
+    return draft;
 }
 
 int get_number_of_picks(const DraftConfig* config)
@@ -142,7 +143,7 @@ int team_with_pick(int pick)
 }
 
 
-void draftbot_destroy()
+void destroy_players()
 {
     unload_players();
 	free(SNAKE_DRAFT_PICKS);

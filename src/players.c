@@ -11,6 +11,7 @@ static PlayerRecord players[MAX_PLAYERS];
 int number_of_players = 0;
 
 static int codify_position_str(const char* position_str, const DraftConfig* config);
+static const Slot* slot_from_position_code(int position_code, const DraftConfig* config);
 static bool does_player_match_slot(const PlayerRecord* player, const Slot* slot);
 
 int load_players(const char* csv_file, const DraftConfig* config)
@@ -124,6 +125,27 @@ const PlayerRecord* get_player_by_name(const char* name)
     return NULL;
 }
 
+int get_players_by_position(
+        const char* position,
+        PlayerRecord players[],
+        const DraftConfig* config,
+        int limit)
+{
+    int count = 0;
+    const PlayerRecord* player = players_begin();
+    for (; player != players_end(); player = players_next())
+    {
+        const Slot* slot = slot_from_position_code(player->position, config);
+        if (!slot) continue;
+        if (strcmp(slot->name, position) == 0 && count < limit)
+        {
+            players[count++] = *player;
+        }
+    }
+    
+    return count;
+}
+
 static int iterator_counter = 0;
 const PlayerRecord* players_begin()
 {
@@ -152,6 +174,16 @@ static int codify_position_str(const char* position_str, const DraftConfig* conf
             return i;
     }
     return -1;
+}
+
+// Does the reverse mapping of codify_position_str. Takes a position string and returns
+// the matching Slot.
+// Returns NULL if slot with given code can't be found.
+static const Slot* slot_from_position_code(int code, const DraftConfig* config)
+{
+    if (code < 0 || code >= config->num_slots)
+        return NULL;
+    return &config->slots[code];
 }
 
 static bool does_player_match_slot(const PlayerRecord* player, const Slot* slot)

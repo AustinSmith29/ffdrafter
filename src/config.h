@@ -37,11 +37,9 @@ const Slot* get_slot(const char* name, const DraftConfig* config);
 bool is_flex_slot(const Slot* slot);
 bool flex_includes_position(const Slot* slot, int position);
 
-int load_config(DraftConfig* config, const char* filename);
+const DraftConfig* load_config(const char* filename);
 int get_number_of_picks(const DraftConfig* config);
 
 int team_with_pick(int pick);
-
-void draftbot_destroy();
-
+void destroy_players();
 #endif

@@ -33,6 +33,15 @@ const PlayerRecord* whos_highest_projected(const struct Slot* slot, const Taken 
 const PlayerRecord* get_player_by_id(unsigned int player_id);
 const PlayerRecord* get_player_by_name(const char* name);
 
+// Puts up to {limit} players into the passed players array for players that match the passed position.
+// Returns the number of players that were copied into the array.
+int get_players_by_position(
+        const char* position,
+        PlayerRecord players[],
+        const struct DraftConfig* config,
+        int limit
+);
+
 // Constant Iterators
 const PlayerRecord* players_begin();
 const PlayerRecord* players_end();
