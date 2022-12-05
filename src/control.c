@@ -33,6 +33,13 @@ static char* get_arg_str();
 static int* get_arg_int();
 static int arg_error(const char* err_message);
 static int runtime_error(const char* err_message);
+static void get_players_at_pos_on_team(
+        const Slot* slot, 
+        int team, 
+        const DraftState* state,
+        PlayerRecord* players[],
+        int num_required
+);
 
 // Parse the input and execute the corresponding logic.
 int do_command(char* command_str, Engine* engine)
@@ -312,9 +319,20 @@ static int roster(const Engine* engine)
     fprintf(stdout, "Team %d\n============\n", *team);
     for (int i = 0; i < engine->config->num_slots; i++)
     {
-        for (int j = 0; j < engine->config->slots[i].num_required; j++)
+        int num_required = engine->config->slots[i].num_required;
+        PlayerRecord* players[num_required];
+        get_players_at_pos_on_team(&engine->config->slots[i], *team, engine->state, players, num_required);
+        for (int j = 0; j < num_required; j++)
+        {   
+            if (players[j])
+                fprintf(stdout, "%s: %s\n", engine->config->slots[i].name, players[j]->name);
+            else
+                fprintf(stdout, "%s:\n", engine->config->slots[i].name);
+        }
+        for (int i = 0; i < num_required; i++)
         {
-            fprintf(stdout, "%s: %s\n", engine->config->slots[i].name, "Blah");
+            if (players[i])
+                free(players[i]);
         }
     }
 
@@ -545,4 +563,32 @@ static int runtime_error(const char* err_message)
 {
     fprintf(stderr, "Error: %s\n", err_message);
     return ERR_RUNTIME;
+}
+
+static void get_players_at_pos_on_team(
+        const Slot* slot, 
+        int team, 
+        const DraftState* state,
+        PlayerRecord* players[],
+        int num_required
+)
+{
+    // initially set all players to NULL
+    for (int i = 0; i < num_required; i++) players[i] = NULL;
+
+    int count = 0;
+    for (int i = 0; i < state->pick; i++)
+    {
+        if (state->taken[i].by_team == team && count < num_required)
+        {
+            const PlayerRecord* player = get_player_by_id(state->taken[i].player_id);
+            if (player->position == slot->index || 
+                (is_flex_slot(slot) && flex_includes_position(slot, player->position)))
+            {
+                PlayerRecord* copy = malloc(sizeof(PlayerRecord));
+                memcpy(copy, player, sizeof(PlayerRecord));
+                players[count++] = copy;
+            }
+        }
+    }
 }
