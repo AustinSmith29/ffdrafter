@@ -71,7 +71,7 @@ const DraftConfig* load_config(const char* filename)
     if (slot_count > MAX_NUM_SLOTS)
     {
         fprintf(stderr, "Error: There are %d slots! The limit is %d!\n", slot_count, MAX_NUM_SLOTS);
-        return -1;
+        return NULL;
     }
     draft->num_slots = slot_count;
 
