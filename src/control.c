@@ -218,7 +218,6 @@ static int think_pick(const Engine* engine)
         return runtime_error("Could not calculate best pick.");
 
     fprintf(stdout, "%s\n", player->name);
-    free((PlayerRecord* )player);
 
     return 0;
 }
@@ -242,6 +241,10 @@ static int make_pick(Engine* engine)
     if (fill_slot(player, engine, team_with_pick(engine->state->pick)) < 0)
         return runtime_error("No roster slots available for that player.");
 
+    engine->state->taken[engine->state->pick] = (Taken) {
+        .player_id = player->id,
+        .by_team = team_with_pick(engine->state->pick)
+    };
     engine->state->pick++;
 
     return 0;
@@ -466,6 +469,10 @@ static int load(Engine* engine)
             fclose(f);
             return runtime_error("Loading Error. No more slots in roster for that player.");
         }
+        engine->state->taken[engine->state->pick] = (Taken) {
+            .player_id = player->id,
+            .by_team = team_with_pick(engine->state->pick)
+        };
 
         engine->state->pick++;
     }
@@ -523,10 +530,12 @@ static int sim_draft(Engine* engine)
         );
 
         fill_slot(player, engine, team_with_pick(engine->state->pick));
+        engine->state->taken[engine->state->pick] = (Taken) {
+            .player_id = player->id,
+            .by_team = team_with_pick(engine->state->pick)
+        };
         fprintf(stdout, "%s\n", player->name);
         engine->state->pick++;
-
-        free((PlayerRecord*)player);
     }
 
     return 0;

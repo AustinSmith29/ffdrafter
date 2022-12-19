@@ -10,16 +10,18 @@
 #include "drafter.h"
 #include "config.h"
 
-// Globals which are set by the corresponding values
-// in the passed DraftConfig to calculate_best_pick.
-// These values get set at the beginning of calculate_best_pick and
-// SHOULD NOT BE MODIFIED.
+// Globals which are set by the corresponding values the passed DraftConfig to 
+// calculate_best_pick. These values get set at the beginning of 
+// calculate_best_pick and SHOULD NOT BE MODIFIED.
 static int NUMBER_OF_TEAMS = 0;
 static int NUMBER_OF_SLOTS = 0;
 static int NUMBER_OF_PICKS = 0;
 
 // Zscores get calculated and stashed in this array at beginning 
 // of calculate_best_pick.
+// TODO: Ideally we would dynamically allocate this to the number of
+// players in the player pool but just using a static buffer is alright
+// for now.
 static double zscores[1000];
 
 typedef struct Node
@@ -54,17 +56,19 @@ static Node* select_child(const Node* parent, int team);
 static double calculate_ucb(const Node* node, int team);
 static bool is_leaf(const Node* node);
 
-// Decrement number of still required from a team's roster requirements based on the player's 
-// position and the remaining slots available on team's roster. Will automatically fill a FLEX 
-// slot if necessary. Does NOT affect the context's "taken" state or increment the current context's pick.
+// Decrement number of still required from a team's roster requirements 
+// based on the player's position and the remaining slots available on 
+// team's roster. Will automatically fill a FLEX slot if necessary. Does NOT
+// affect the context's "taken" state or increment the current context's pick.
 static void fill_slot(SearchContext* context, const PlayerRecord* player, int team, const DraftConfig* config);
 
-// Marks player as taken in the given context, calls fill_slot to update the team's roster requirements, and
-// increments the context's pick state.
+// Marks player as taken in the given context, calls fill_slot to update the
+// team's roster requirements, and increments the context's pick state.
 static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config);
 
-// Creates next level of tree from the passed leaf node. Creates NUMBER_OF_SLOTS new children where each 
-// child represents picking the player at that slot with the highest point total.
+// Creates next level of tree from the passed leaf node. Creates 
+// NUMBER_OF_SLOTS new children where each child represents picking the player
+// at that slot with the highest point total.
 static void expand_tree(Node* node, const SearchContext* context, const DraftConfig* config);
 
 static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config);
@@ -80,9 +84,7 @@ static void calculate_zscores(const DraftConfig* config);
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
-//
-// Uses projected_points z_score as a heuristic for simulation pick.
-//
+// More on MCTS: https://www.geeksforgeeks.org/ml-monte-carlo-tree-search-mcts/
 const PlayerRecord* calculate_best_pick(
     int thinking_time, 
     int pick, 
@@ -115,10 +117,11 @@ const PlayerRecord* calculate_best_pick(
     while ( (clock() / CLOCKS_PER_SEC) - start_time_s < thinking_time )
     {
         Node* node = current_context->node;
-        if (!node) // We are out of players to pick
-        {
+
+        // If node is NULL then that indicates we've searched the entire
+        // search space, therefore we are done searching.
+        if (!node)
             break;
-        }
 
         node->visited++;
 
@@ -128,12 +131,10 @@ const PlayerRecord* calculate_best_pick(
             if (node->parent != NULL) // We don't calculate score for root
             {
                 double score = simulate_score(current_context, node, draft_config);
-                if (current_context->pick > max_depth)
-                {
-                    max_depth = current_context->pick;
-                }
-                // Also increments node's "visited" member as score back-propogates
                 backpropogate_score(node, score, team_with_pick(current_context->pick)); 
+
+                if (current_context->pick > max_depth)
+                    max_depth = current_context->pick;
             }
 			reset_search_context_to(MASTER_CONTEXT, current_context);
         }
@@ -141,13 +142,13 @@ const PlayerRecord* calculate_best_pick(
         {
             if (node != root) // root doesn't have a player associated to it
                 make_pick(current_context, node->chosen_player, draft_config);
+
             current_context->node = select_child(node, team_with_pick(current_context->pick));
         }
     } 
 
 	// Destroying context removes node so we have to copy which player
 	// it would have taken.
-	PlayerRecord* const chosen_player = malloc(sizeof(PlayerRecord));
 	double max = 0.0;
 	int child = 0;
 	int team = team_with_pick(pick);
@@ -159,13 +160,16 @@ const PlayerRecord* calculate_best_pick(
 			child = i;
 		}
 	}
-	memcpy(chosen_player, root->children[child]->chosen_player, sizeof(PlayerRecord));
+    if (root->children[child] == NULL) 
+    {
+        printf("Current context.\n");
+    }
+    const PlayerRecord* chosen_player = get_player_by_id(root->children[child]->chosen_player->id);
 
 	destroy_search_context(MASTER_CONTEXT);
 	destroy_search_context(current_context);
 
 	free_node(root);
-
 
     return chosen_player;
 }
@@ -321,6 +325,7 @@ static void fill_slot(SearchContext* context, const PlayerRecord* player, int te
 
 static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config)
 {
+    assert(player != NULL);
 	int team = team_with_pick(context->pick);
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
@@ -331,7 +336,14 @@ static void make_pick(SearchContext* context, const PlayerRecord* player, const 
 static void expand_tree(Node* const node, const SearchContext* context, const DraftConfig* config)
 {
 	assert(node != NULL);
+
     int pick = context->pick + 1; // next tree level is for *next* pick
+
+    if (pick >= NUMBER_OF_PICKS) 
+    {
+        return;
+    }
+
 	const int* requirements = context->team_requirements[team_with_pick(pick)];
 	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
 	{
@@ -482,7 +494,6 @@ static void backpropogate_score(Node* node, double score, int team)
 	{
 		node->scores[team] = score;
 	}
-	node->visited++;
 	backpropogate_score(node->parent, score, team);
 }
 

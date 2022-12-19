@@ -23,10 +23,9 @@ $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
 
 $(BUILD_DIR)/%.c.o: %.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
-
+	$(CC) $(CFLAGS) -c $< -o $@ 
 .PHONY: clean
 clean:
-	rm -f $(BUILD_DIR)
+	rm -f $(BUILD_DIR)/*
 
 -include $(DEPS)
