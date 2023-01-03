@@ -44,6 +44,9 @@ static void get_players_at_pos_on_team(
 // Parse the input and execute the corresponding logic.
 int do_command(char* command_str, Engine* engine)
 {
+    if (strlen(command_str) < 1) {
+        return 0;
+    }
     char* command = strtok(command_str, ARG_DELIM);
 
     // Most commands require a draft configuration and a player pool to be loaded.
@@ -51,7 +54,7 @@ int do_command(char* command_str, Engine* engine)
     // We will use this ready variable to limit the types of commands that can run.
     bool ready = engine->state != NULL && engine->config != NULL;
 
-    if (strcmp(command, "load_draft_config") == 0)
+    if (strcmp(command, "load_config") == 0)
     {
         return load_draft_config(engine);
     }
@@ -59,22 +62,22 @@ int do_command(char* command_str, Engine* engine)
     {
         return do_exit();
     }
-    else if (strcmp(command, "load_player_pool") == 0)
+    else if (strcmp(command, "load_players") == 0)
     {
         return load_player_pool(engine);
     }
     //----------------------------------------------
     // Commands that require the engine to be ready
     // ---------------------------------------------
-    else if (strcmp(command, "think_pick") == 0 && ready)
+    else if (strcmp(command, "think") == 0 && ready)
     {
         return think_pick(engine);
     }
-    else if (strcmp(command, "make_pick") == 0 && ready)
+    else if (strcmp(command, "pick") == 0 && ready)
     {
         return make_pick(engine);
     }
-    else if (strcmp(command, "undo_pick") == 0 && ready)
+    else if (strcmp(command, "undo") == 0 && ready)
     {
         return undo_pick(engine);
     }
@@ -110,7 +113,7 @@ int do_command(char* command_str, Engine* engine)
     {
         return load(engine);
     }
-    else if (strcmp(command, "sim_draft") == 0 && ready)
+    else if (strcmp(command, "sim") == 0 && ready)
     {
         return sim_draft(engine);
     }
