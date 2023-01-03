@@ -13,11 +13,11 @@ is ready to start calculating picks.
 
 Command | Description
 --- | ---
- `think_pick` | Returns the player the engine thinks is the optimal pick in the current draft state.
- `make_pick;[player_name]` | Adds the player to the roster of the team currently picking.
- `undo_pick` | Resets the draft state to the previous pick.
- `load_draft_config;[filename]` | loads a draft config. Resets draft state to start.
- `load_player_pool;[filename]` | sets the draft pool. Resets draft state to start.
+ `think` | Returns the player the engine thinks is the optimal pick in the current draft state.
+ `pick;[player_name]` | Adds the player to the roster of the team currently picking.
+ `undo` | Resets the draft state to the previous pick.
+ `load_config;[filename]` | loads a draft config. Resets draft state to start.
+ `load_players;[filename]` | sets the draft pool. Resets draft state to start.
  `set_think_time;[seconds]` | sets the amount of time the engine will think (in seconds). 
  `state` | Prints current pick number, drafting team, and engine think time.
  `history` | Prints out all the picks that were made so far.
@@ -26,7 +26,7 @@ Command | Description
  `bench;[player_name]` | Adds player to the roster without counting points toward total.
  `load:[filename]` | loads and resumes draft that was previously started
  `save;[filename]` | saves draft
- `sim_draft` | Engine makes every pick for the remainder of the draft.
+ `sim` | Engine makes every pick for the remainder of the draft.
  `exit` | Exit out of the engine.
 
 ## Configuration

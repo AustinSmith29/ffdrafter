@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
     init_engine(&engine);
 
-	printf("fDraft v%d.%d.%d\nWritten by Austin Smith.\n\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+	printf("fDraft v%d.%d.%d\nWritten by Austin Smith 2023.\n\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 
     char cmd_buf[100];
     do 

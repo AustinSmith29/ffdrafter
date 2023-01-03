@@ -10,16 +10,18 @@
 #include "drafter.h"
 #include "config.h"
 
-// Globals which are set by the corresponding values
-// in the passed DraftConfig to calculate_best_pick.
-// These values get set at the beginning of calculate_best_pick and
-// SHOULD NOT BE MODIFIED.
+// Globals which are set by the corresponding values the passed DraftConfig to 
+// calculate_best_pick. These values get set at the beginning of 
+// calculate_best_pick and SHOULD NOT BE MODIFIED.
 static int NUMBER_OF_TEAMS = 0;
 static int NUMBER_OF_SLOTS = 0;
 static int NUMBER_OF_PICKS = 0;
 
 // Zscores get calculated and stashed in this array at beginning 
 // of calculate_best_pick.
+// TODO: Ideally we would dynamically allocate this to the number of
+// players in the player pool but just using a static buffer is alright
+// for now.
 static double zscores[1000];
 
 typedef struct Node
@@ -54,34 +56,65 @@ static Node* select_child(const Node* parent, int team);
 static double calculate_ucb(const Node* node, int team);
 static bool is_leaf(const Node* node);
 
-// Decrement number of still required from a team's roster requirements based on the player's position and the
-// remaining slots available on team's roster. Will automatically fill a FLEX slot if necessary. Does NOT affect
-// the context's "taken" state or increment the current context's pick.
+// Decrement number of still required from a team's roster requirements 
+// based on the player's position and the remaining slots available on 
+// team's roster. Will automatically fill a FLEX slot if necessary. Does NOT
+// affect the context's "taken" state or increment the current context's pick.
 static void fill_slot(SearchContext* context, const PlayerRecord* player, int team, const DraftConfig* config);
 
-// Marks player as taken in the given context, calls fill_slot to update the team's roster requirements, and
-// increments the context's pick state.
+// Marks player as taken in the given context, calls fill_slot to update the
+// team's roster requirements, and increments the context's pick state.
 static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config);
 
-// Creates next level of tree from the passed leaf node. Creates NUMBER_OF_SLOTS new children where each child
-// represents picking the player at that slot with the highest point total.
+// Creates next level of tree from the passed leaf node. Creates 
+// NUMBER_OF_SLOTS new children where each child represents picking the player
+// at that slot with the highest point total.
 static void expand_tree(Node* node, const SearchContext* context, const DraftConfig* config);
 
+// What we are measuring is not raw score but rather score share. For example, if we were simply maximizing
+// the drafting player's score, we could have the following opportunity:
+//
+//    Team A (drafting team)  |   Team B       |  Team C
+//    -----------------------------------------------------
+//          1000 points       |   900 points   | 800 points
+//
+// Compare that with:
+//    
+//    Team A (drafting team)  |   Team B       |  Team C
+//    -----------------------------------------------------
+//          1000 points        |   850 points   |  850 points
+//
+// Team A still has the same percentage of the score pie, but has limited the strength of the next best
+// team, which in my opinion is preferable. Granted, it accomplished this by increasing the strength of
+// Team C, but it brings the opponents down to an equilibrium minima (here I'm using big words to 
+// disguise the fact that I'm not 100% sure about the validity of my statement and am instead relying
+// on intuition.) AKA... Just trust me bro.
+//
+// So the returned value of this function is actually a value in the range [0, 1] which corresponds with
+// the percentage of the total score "pie" obtained for the player.
 static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config);
+
+// These functions are responsible for the simulation phase of the monte carlo search. These have very
+// important ramifications on the performance of the algorithm. My methodology when simming a single pick
+// is to randomly pick between 3 drafting methods:
+//    1. highest zscore: heuristic to pick the player with best "value"
+//    2. highest score: greedily pick player with highest points
+//    3. random: pick a random position and then pick the highest projected player in that position
+//
+// Pure MCTS calls for just the random pick method, but experimentally I have discovered that adding
+// the zscore method significantly improved the quality of the picks.
 static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config);
+static const PlayerRecord* zscore_pick_method(const SearchContext* context, const DraftConfig* config);
+static const PlayerRecord* greedy_pick_method(const SearchContext* context, const DraftConfig* config);
+static const PlayerRecord* random_pick_method(const SearchContext* context, const DraftConfig* config);
+
 static void backpropogate_score(Node* node, double score, int team);
 static void calculate_zscores(const DraftConfig* config);
 
 
 // Uses the Monte Carlo Tree Search Algorithm to find which available player 
 // maximizes the teams total projected fantasy points.
-//
-// Uses projected_points z_score as a heuristic for simulation pick.
-//
-// @param thinking_time: Time in seconds the algorithm has before it returns an answer
-// @param pick: Initializes the search to think we are at this pick number
-// @param taken: Initializes the search to think these players are taken
-// @param draft_config: Specifies the slots and number_of_teams in draft
+// More on MCTS: https://www.geeksforgeeks.org/ml-monte-carlo-tree-search-mcts/
 const PlayerRecord* calculate_best_pick(
     int thinking_time, 
     int pick, 
@@ -114,40 +147,38 @@ const PlayerRecord* calculate_best_pick(
     while ( (clock() / CLOCKS_PER_SEC) - start_time_s < thinking_time )
     {
         Node* node = current_context->node;
-        if (!node) // We are out of players to pick
-        {
+
+        // If node is NULL then that indicates we've searched the entire
+        // search space, therefore we are done searching.
+        if (!node)
             break;
-        }
-        if (node->parent != NULL)
-        {
-            make_pick(current_context, node->chosen_player, draft_config);
-            node->visited++;
-        }
+
+        node->visited++;
+
         if (is_leaf(node))
         {
             expand_tree(node, current_context, draft_config);
             if (node->parent != NULL) // We don't calculate score for root
             {
-                current_context->pick--;
                 double score = simulate_score(current_context, node, draft_config);
-                if (current_context->pick > max_depth)
-                {
-                    max_depth = current_context->pick;
-                }
-                // Also increments node's "visited" member as score back-propogates
                 backpropogate_score(node, score, team_with_pick(current_context->pick)); 
+
+                if (current_context->pick > max_depth)
+                    max_depth = current_context->pick;
             }
 			reset_search_context_to(MASTER_CONTEXT, current_context);
         }
         else
         {
+            if (node != root) // root doesn't have a player associated to it
+                make_pick(current_context, node->chosen_player, draft_config);
+
             current_context->node = select_child(node, team_with_pick(current_context->pick));
         }
     } 
 
 	// Destroying context removes node so we have to copy which player
 	// it would have taken.
-	PlayerRecord* const chosen_player = malloc(sizeof(PlayerRecord));
 	double max = 0.0;
 	int child = 0;
 	int team = team_with_pick(pick);
@@ -159,7 +190,15 @@ const PlayerRecord* calculate_best_pick(
 			child = i;
 		}
 	}
-	memcpy(chosen_player, root->children[child]->chosen_player, sizeof(PlayerRecord));
+    if (root->children[child] == NULL) 
+    {
+        destroy_search_context(MASTER_CONTEXT);
+        destroy_search_context(current_context);
+        free_node(root);
+        return NULL;
+    }
+
+    const PlayerRecord* chosen_player = get_player_by_id(root->children[child]->chosen_player->id);
 
 	destroy_search_context(MASTER_CONTEXT);
 	destroy_search_context(current_context);
@@ -238,7 +277,7 @@ static void reset_search_context_to(const SearchContext* original, SearchContext
 	delta->node = original->node;
 	delta->pick = original->pick;
 	memcpy(delta->taken, original->taken, NUMBER_OF_PICKS * sizeof(Taken));
-	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+	for (int i = 0; i < NUMBER_OF_TEAMS; i++)
 		memcpy(delta->team_requirements[i], original->team_requirements[i], NUMBER_OF_SLOTS * sizeof(int));
 }
 
@@ -320,6 +359,7 @@ static void fill_slot(SearchContext* context, const PlayerRecord* player, int te
 
 static void make_pick(SearchContext* context, const PlayerRecord* player, const DraftConfig* config)
 {
+    assert(player != NULL);
 	int team = team_with_pick(context->pick);
 	context->taken[context->pick].player_id = player->id;
 	context->taken[context->pick].by_team = team;
@@ -330,15 +370,32 @@ static void make_pick(SearchContext* context, const PlayerRecord* player, const 
 static void expand_tree(Node* const node, const SearchContext* context, const DraftConfig* config)
 {
 	assert(node != NULL);
-    int pick = context->pick;
-	const int* requirements = context->team_requirements[team_with_pick(pick)];
+
+    // next tree level is for *next* pick.
+	// Need to add the node we are coming from to the pick history. Ran into a bug where the team
+    // that drafted back-to-back in the snake draft was thinking that the player in the from_node was
+    // still available to be picked. Here we copy the search_context and then expand.
+    SearchContext* expand_context = create_search_context(context->pick, context->taken, config);
+    reset_search_context_to(context, expand_context);
+    if (node->chosen_player)
+        make_pick(expand_context, node->chosen_player, config);
+
+    if (expand_context->pick >= NUMBER_OF_PICKS) 
+    {
+        destroy_search_context(expand_context);
+        return;
+    }
+
+	const int* requirements = expand_context->team_requirements[team_with_pick(expand_context->pick)];
 	for (int i = 0; i < NUMBER_OF_SLOTS; i++)
 	{
 		const PlayerRecord* player;
         const Slot* slot = &config->slots[i];
-		if (requirements[i] > 0 && (player = whos_highest_projected(slot, context->taken, pick)) != NULL)
+		if (requirements[i] > 0 && (player = whos_highest_projected(slot, expand_context->taken, expand_context->pick)) != NULL)
 			node->children[i] = create_node(node, player);
 	}
+
+    destroy_search_context(expand_context);
 }
 
 static double simulate_score(const SearchContext* context, const Node* from_node, const DraftConfig* config)
@@ -353,15 +410,13 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 	make_pick(sim_search_context, from_node->chosen_player, config);
 
 	// go up branch to calculate real cumultive score to this point
-	double score = 0.0;
+    double scores[NUMBER_OF_TEAMS];
+	double total = 0.0;
 	const Node* n = from_node;
     int p = sim_search_context->pick - 1;
 	while (n->parent != NULL)
 	{
-        if (team_with_pick(p) == drafting_team) 
-        {
-		    score += n->chosen_player->projected_points;
-        }
+        scores[team_with_pick(p)] += n->chosen_player->projected_points;
 		n = n->parent;
         p--;
 	}
@@ -369,42 +424,45 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 	while (sim_search_context->pick < NUMBER_OF_PICKS)
 	{
 		const PlayerRecord* player = sim_pick_for_team(sim_search_context, config);
-        //TODO: I inserted this cheap return score thing because the assert below was 
-        // triggering... figure out WHY. I suspect its because we are running out of players or
-        // something???
-        if (!player)
-        {
-            destroy_search_context(sim_search_context);
-            return score;
-        }
 		assert(player != NULL);
 
-		// Only count score for every cycle of picks so
-        // destroy_search_context(sim_search_context);
-		// we add up score of a single team.
-		if (team_with_pick(sim_search_context->pick) == drafting_team) 
-		{
-			score += player->projected_points;
-		}
+        scores[team_with_pick(sim_search_context->pick)] += player->projected_points;
+        total += player->projected_points;
 
 		make_pick(sim_search_context, player, config);
 	}
 
+    // Calculate score share from sums
+    double score_share = scores[drafting_team] / total;
+
 	destroy_search_context(sim_search_context);
-	return score;
+	return score_share;
 }
 
 static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config)
 {
-	const Taken* const sim_taken = context->taken;
+    const PlayerRecord* methods[] = {
+        zscore_pick_method(context, config),
+        greedy_pick_method(context, config),
+        random_pick_method(context, config)
+    };
+
+    int num_methods = sizeof(methods) / sizeof(methods[0]);
+    int rand_index = random() % num_methods;
+    return methods[rand_index];
+}
+
+// Chooses the player with the highest z-score. Used to represent the best "value" pick.
+static const PlayerRecord* zscore_pick_method(const SearchContext* context, const DraftConfig* config)
+{
+    const PlayerRecord* picked_player = NULL;
 	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
 
-    const PlayerRecord* picked_player = NULL;
     double max_zscore = 0.0;
     for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
         const Slot* slot = &config->slots[i];
-        const PlayerRecord* player = whos_highest_projected(slot, sim_taken, context->pick);
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
         if (player && still_required[i] > 0)
         {
             double zscore = zscores[player->id];
@@ -415,19 +473,77 @@ static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const
             }
         }
     }
+
     return picked_player;
 }
 
+// Greedily chooses the draftable player with the highest projected points.
+static const PlayerRecord* greedy_pick_method(const SearchContext* context, const DraftConfig* config)
+{
+    const PlayerRecord* picked_player = NULL;
+	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
+
+    double max_score = 0.0;
+    for (int i = 0; i < NUMBER_OF_SLOTS; i++)
+    {
+        const Slot* slot = &config->slots[i];
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
+        if (player && still_required[i] > 0)
+        {
+            if (!picked_player || player->projected_points > max_score)
+            {
+                picked_player = player;
+                max_score = player->projected_points;
+            }
+        }
+    }
+
+    return picked_player;
+}
+
+// Randomly selects an valid postion to draft and selects the highest projected player at that position.
+// Used to add randomness and potentially discover new, better draft routes in combination with Monte Carlo.
+static const PlayerRecord* random_pick_method(const SearchContext* context, const DraftConfig* config)
+{
+	const int* const still_required = context->team_requirements[team_with_pick(context->pick)];
+
+	const PlayerRecord* list[config->num_slots];
+    int len = 0;
+    for (int i = 0; i < config->num_slots; i++)
+    {
+        const Slot* slot = &config->slots[i];
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
+        if (player && still_required[i] > 0)
+        {
+            list[len++] = player;
+        }
+    }
+    if (len == 0)
+    {
+        return NULL;
+    }
+    int rand_index = random() % len;
+    return list[rand_index];
+}
+
+// I am taking the approach of each node's score being a average of all
+// the playouts that have been run with this node. I do not know if this is
+// the correct approach. I am experimenting with it. To me, the highest average
+// would correspond to a better "probability" of winning the tree should you
+// take that node. Just taking the highest score could lead to the algorithm
+// favoring a path simply because the simulation phase got a lucky, but improbable, 
+// rollout for the drafting team.
 static void backpropogate_score(Node* node, double score, int team)
 {
 	if (!node)
 		return;
-	if (score > node->scores[team])
-	{
-		node->scores[team] = score;
-	}
-	node->visited++;
-	backpropogate_score(node->parent, score, team);
+    // Calculate the node's new average score.
+    // Subtract 1 from visited because the node's visited has been incremented
+    // before it has had any score assigned to it.
+    double total = (node->visited-1) * node->scores[team];
+    double new_avg =  score + total / node->visited;
+	node->scores[team] = new_avg;
+	backpropogate_score(node->parent, new_avg, team);
 }
 
 static void calculate_zscores(const DraftConfig* config)
