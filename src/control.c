@@ -50,7 +50,7 @@ int do_command(char* command_str, Engine* engine)
     char* command = strtok(command_str, ARG_DELIM);
 
     // Most commands require a draft configuration and a player pool to be loaded.
-    // The only commands that do not are load_draft_config, load_player_pool, and exit.
+    // The only commands that do not are load_config and exit.
     // We will use this ready variable to limit the types of commands that can run.
     bool ready = engine->state != NULL && engine->config != NULL;
 
@@ -62,13 +62,13 @@ int do_command(char* command_str, Engine* engine)
     {
         return do_exit();
     }
-    else if (strcmp(command, "load_players") == 0)
-    {
-        return load_player_pool(engine);
-    }
     //----------------------------------------------
     // Commands that require the engine to be ready
     // ---------------------------------------------
+    else if (strcmp(command, "load_players") == 0 && ready)
+    {
+        return load_player_pool(engine);
+    }
     else if (strcmp(command, "think") == 0 && ready)
     {
         return think_pick(engine);
