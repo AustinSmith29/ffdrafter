@@ -200,6 +200,9 @@ const PlayerRecord* calculate_best_pick(
 
     const PlayerRecord* chosen_player = get_player_by_id(root->children[child]->chosen_player->id);
 
+    printf("Max depth: %d\n", max_depth);
+    printf("Iterations: %d\n", root->visited);
+
 	destroy_search_context(MASTER_CONTEXT);
 	destroy_search_context(current_context);
 
@@ -391,7 +394,7 @@ static void expand_tree(Node* const node, const SearchContext* context, const Dr
 	{
 		const PlayerRecord* player;
         const Slot* slot = &config->slots[i];
-		if (requirements[i] > 0 && (player = whos_highest_projected(slot, expand_context->taken, expand_context->pick)) != NULL)
+		if (requirements[i] > 0 && (player = whos_highest_projected(slot, expand_context->taken, expand_context->pick, config)) != NULL)
 			node->children[i] = create_node(node, player);
 	}
 
@@ -411,6 +414,7 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 
 	// go up branch to calculate real cumultive score to this point
     double scores[NUMBER_OF_TEAMS];
+    for (int i = 0; i < NUMBER_OF_TEAMS; i++) scores[i] = 0;
 	double total = 0.0;
 	const Node* n = from_node;
     int p = sim_search_context->pick - 1;
@@ -441,15 +445,20 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 
 static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config)
 {
-    const PlayerRecord* methods[] = {
-        zscore_pick_method(context, config),
-        greedy_pick_method(context, config),
-        random_pick_method(context, config)
-    };
+    // TODO: Can actually do the random number first so we aren't wasting time doing picking
+    // functions that we won't use. i.e if random_number == 0 do zscore etc. etc.
+    int rand_index = random() % 3;
 
-    int num_methods = sizeof(methods) / sizeof(methods[0]);
-    int rand_index = random() % num_methods;
-    return methods[rand_index];
+    switch (rand_index)
+    {
+        case 0:
+            return zscore_pick_method(context, config);
+        case 1:
+            return greedy_pick_method(context, config);
+        case 2:
+        default:
+            return random_pick_method(context, config);
+    }
 }
 
 // Chooses the player with the highest z-score. Used to represent the best "value" pick.
@@ -462,7 +471,7 @@ static const PlayerRecord* zscore_pick_method(const SearchContext* context, cons
     for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
         const Slot* slot = &config->slots[i];
-        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick, config);
         if (player && still_required[i] > 0)
         {
             double zscore = zscores[player->id];
@@ -487,7 +496,7 @@ static const PlayerRecord* greedy_pick_method(const SearchContext* context, cons
     for (int i = 0; i < NUMBER_OF_SLOTS; i++)
     {
         const Slot* slot = &config->slots[i];
-        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick, config);
         if (player && still_required[i] > 0)
         {
             if (!picked_player || player->projected_points > max_score)
@@ -512,7 +521,7 @@ static const PlayerRecord* random_pick_method(const SearchContext* context, cons
     for (int i = 0; i < config->num_slots; i++)
     {
         const Slot* slot = &config->slots[i];
-        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick);
+        const PlayerRecord* player = whos_highest_projected(slot, context->taken, context->pick, config);
         if (player && still_required[i] > 0)
         {
             list[len++] = player;
