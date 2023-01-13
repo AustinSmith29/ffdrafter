@@ -270,14 +270,14 @@ static int undo_pick(Engine* engine)
         {
             engine->state->still_required[i][j] = engine->config->slots[i].num_required;
         }
+    }
 
-        // Play back draft up to the pick before last, effectively undoing the last pick.
-        engine->state->pick--;
-        for (int i = 0; i < engine->state->pick; i++)
-        {
-            const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
-            fill_slot(player, engine, team_with_pick(i));
-        }
+    // Play back draft up to the pick before last, effectively undoing the last pick.
+    engine->state->pick--;
+    for (int i = 0; i < engine->state->pick; i++)
+    {
+        const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
+        fill_slot(player, engine, team_with_pick(i));
     }
     
     return 0;
