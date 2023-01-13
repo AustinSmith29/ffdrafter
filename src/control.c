@@ -197,6 +197,7 @@ static int fill_slot(const PlayerRecord* player, Engine* engine, int team)
 			   )
 			{
 				engine->state->still_required[team][j]--;
+                break; // don't wanna fill up multiple flex's if possible
 			}
 		}
 		return 0;
@@ -341,6 +342,16 @@ static int roster(const Engine* engine)
                 free(players[i]);
         }
     }
+    double score = 0.0;
+    for (int i = 0; i < engine->state->pick; i++)
+    {
+        if (engine->state->taken[i].by_team == *team)
+        {
+            const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
+            score += player->projected_points;
+        }
+    }
+    fprintf(stdout, "Projected points: %f\n", score);
 
     free(team);
 

@@ -200,9 +200,6 @@ const PlayerRecord* calculate_best_pick(
 
     const PlayerRecord* chosen_player = get_player_by_id(root->children[child]->chosen_player->id);
 
-    printf("Max depth: %d\n", max_depth);
-    printf("Iterations: %d\n", root->visited);
-
 	destroy_search_context(MASTER_CONTEXT);
 	destroy_search_context(current_context);
 
@@ -355,6 +352,7 @@ static void fill_slot(SearchContext* context, const PlayerRecord* player, int te
 			   )
 			{
 				context->team_requirements[team][j]--;
+                break; // don't wanna fill up multiple flex's if possible
 			}
 		}
 	}
