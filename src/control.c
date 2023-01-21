@@ -50,7 +50,7 @@ int do_command(char* command_str, Engine* engine)
     char* command = strtok(command_str, ARG_DELIM);
 
     // Most commands require a draft configuration and a player pool to be loaded.
-    // The only commands that do not are load_draft_config, load_player_pool, and exit.
+    // The only commands that do not are load_config and exit.
     // We will use this ready variable to limit the types of commands that can run.
     bool ready = engine->state != NULL && engine->config != NULL;
 
@@ -62,13 +62,13 @@ int do_command(char* command_str, Engine* engine)
     {
         return do_exit();
     }
-    else if (strcmp(command, "load_players") == 0)
-    {
-        return load_player_pool(engine);
-    }
     //----------------------------------------------
     // Commands that require the engine to be ready
     // ---------------------------------------------
+    else if (strcmp(command, "load_players") == 0 && ready)
+    {
+        return load_player_pool(engine);
+    }
     else if (strcmp(command, "think") == 0 && ready)
     {
         return think_pick(engine);
@@ -197,6 +197,7 @@ static int fill_slot(const PlayerRecord* player, Engine* engine, int team)
 			   )
 			{
 				engine->state->still_required[team][j]--;
+                break; // don't wanna fill up multiple flex's if possible
 			}
 		}
 		return 0;
@@ -269,14 +270,14 @@ static int undo_pick(Engine* engine)
         {
             engine->state->still_required[i][j] = engine->config->slots[i].num_required;
         }
+    }
 
-        // Play back draft up to the pick before last, effectively undoing the last pick.
-        engine->state->pick--;
-        for (int i = 0; i < engine->state->pick; i++)
-        {
-            const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
-            fill_slot(player, engine, team_with_pick(i));
-        }
+    // Play back draft up to the pick before last, effectively undoing the last pick.
+    engine->state->pick--;
+    for (int i = 0; i < engine->state->pick; i++)
+    {
+        const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
+        fill_slot(player, engine, team_with_pick(i));
     }
     
     return 0;
@@ -341,6 +342,16 @@ static int roster(const Engine* engine)
                 free(players[i]);
         }
     }
+    double score = 0.0;
+    for (int i = 0; i < engine->state->pick; i++)
+    {
+        if (engine->state->taken[i].by_team == *team)
+        {
+            const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
+            score += player->projected_points;
+        }
+    }
+    fprintf(stdout, "Projected points: %f\n", score);
 
     free(team);
 

@@ -28,7 +28,12 @@ int is_taken(int player_id, const Taken taken[], int passed_picks);
 
 // Gets record of the player with the highest projected points at the given slot who's id is NOT in
 // the taken list.
-const PlayerRecord* whos_highest_projected(const struct Slot* slot, const Taken taken[], int passed_picks);
+const PlayerRecord* whos_highest_projected(
+        const struct Slot* slot, 
+        const Taken taken[], 
+        int passed_picks,
+        const struct DraftConfig* config
+);
 
 const PlayerRecord* get_player_by_id(unsigned int player_id);
 const PlayerRecord* get_player_by_name(const char* name);
