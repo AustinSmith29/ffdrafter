@@ -443,8 +443,6 @@ static double simulate_score(const SearchContext* context, const Node* from_node
 
 static const PlayerRecord* sim_pick_for_team(const SearchContext* context, const DraftConfig* config)
 {
-    // TODO: Can actually do the random number first so we aren't wasting time doing picking
-    // functions that we won't use. i.e if random_number == 0 do zscore etc. etc.
     int rand_index = random() % 3;
 
     switch (rand_index)
