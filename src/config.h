@@ -39,6 +39,7 @@ bool flex_includes_position(const Slot* slot, int position);
 
 const DraftConfig* load_config(const char* filename);
 int get_number_of_picks(const DraftConfig* config);
+void assign_pick(int pick, int team);
 
 int team_with_pick(int pick);
 void destroy_players();

@@ -24,6 +24,7 @@ Command | Description
  `roster;[team_id]` | Shows roster slots and summation of fantasy points for team with team_id.
  `available;[position];lim` | Shows  up to lim available players at a position.
  `bench;[player_name]` | Adds player to the roster without counting points toward total.
+ `give_pick;[pick_num];[team_id]` | Assigns pick_num to the team with team_id. Can be used to handle trades.
  `load:[filename]` | loads and resumes draft that was previously started
  `save;[filename]` | saves draft
  `sim` | Engine makes every pick for the remainder of the draft.

@@ -4,8 +4,8 @@
 #include "players.h"
 #include "config.h"
 
-#define VERSION_MAJOR 0
-#define VERSION_MINOR 5
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 1
 #define VERSION_PATCH 0
 
 typedef struct DraftState 

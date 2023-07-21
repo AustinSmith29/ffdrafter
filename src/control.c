@@ -20,6 +20,7 @@ static int history(const Engine* engine);
 static int roster(const Engine* engine);
 static int available(const Engine* engine);
 static int bench(Engine* engine);
+static int give_pick(Engine* engine);
 static int save(const Engine* engine);
 static int load(Engine* engine);
 static int load_draft_config(Engine* engine);
@@ -104,6 +105,10 @@ int do_command(char* command_str, Engine* engine)
     else if (strcmp(command, "bench") == 0 && ready)
     {
         return bench(engine);
+    }
+    else if (strcmp(command, "give_pick") == 0 && ready)
+    {
+        return give_pick(engine);
     }
     else if (strcmp(command, "save") == 0 && ready)
     {
@@ -411,6 +416,27 @@ static int bench(Engine* engine)
     engine->state->pick++;
 
     return 0;
+}
+
+static int give_pick(Engine* engine)
+{
+	int n_picks = get_number_of_picks(engine->config);
+    int* pick_num = get_arg_int();
+    if (!pick_num)
+        return runtime_error("give_pick requires a pick number argument.");
+    if (*pick_num > n_picks-1 || *pick_num < engine->state->pick)
+        return runtime_error("Cannot trade that pick.");
+
+    int* team_id = get_arg_int();
+    if (!team_id)
+        return runtime_error("give_pick requires a team_id argument.");
+    if (*team_id < 0 || *team_id > engine->config->num_teams-1)
+        return runtime_error("invalid team_id");
+
+    assign_pick(*pick_num, *team_id);
+
+    free(pick_num);
+    free(team_id);
 }
 
 static int save(const Engine* engine)
