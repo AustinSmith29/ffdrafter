@@ -31,7 +31,8 @@ static int do_exit();
 // Helpers
 static int fill_slot(const PlayerRecord* p, Engine* engine, int team);
 static char* get_arg_str();
-static int* get_arg_int();
+// Puts parsed integer in buf. Returns < 0 on error. 
+static int get_arg_int(int* buf);
 static int arg_error(const char* err_message);
 static int runtime_error(const char* err_message);
 static void get_players_at_pos_on_team(
@@ -290,18 +291,14 @@ static int undo_pick(Engine* engine)
 
 static int set_think_time(Engine* engine)
 {
-    int* think_time = get_arg_int();
-    if (!think_time)
+    int think_time;
+    if (get_arg_int(&think_time) < 0)
         return arg_error("set_think_time requires a time_in_seconds argument.");
 
-    if (*think_time <= 0)
-    {
-        free(think_time);
+    if (think_time <= 0)
         return arg_error("The think time must be an integer (in seconds).");
-    }
 
-    engine->think_time = *think_time;
-    free(think_time);
+    engine->think_time = think_time;
 
     return 0;
 }
@@ -327,13 +324,16 @@ static int history(const Engine* engine)
 
 static int roster(const Engine* engine)
 {
-    int* team = get_arg_int();
-    fprintf(stdout, "Team %d\n============\n", *team);
+    int team;
+    if (get_arg_int(&team) < 0)
+        return arg_error("roster requires a team_id argument.");
+
+    fprintf(stdout, "Team %d\n============\n", team);
     for (int i = 0; i < engine->config->num_slots; i++)
     {
         int num_required = engine->config->slots[i].num_required;
         PlayerRecord* players[num_required];
-        get_players_at_pos_on_team(&engine->config->slots[i], *team, engine->state, players, num_required);
+        get_players_at_pos_on_team(&engine->config->slots[i], team, engine->state, players, num_required);
         for (int j = 0; j < num_required; j++)
         {   
             if (players[j])
@@ -350,15 +350,13 @@ static int roster(const Engine* engine)
     double score = 0.0;
     for (int i = 0; i < engine->state->pick; i++)
     {
-        if (engine->state->taken[i].by_team == *team)
+        if (engine->state->taken[i].by_team == team)
         {
             const PlayerRecord* player = get_player_by_id(engine->state->taken[i].player_id);
             score += player->projected_points;
         }
     }
     fprintf(stdout, "Projected points: %f\n", score);
-
-    free(team);
 
     return 0;
 }
@@ -371,12 +369,9 @@ static int available(const Engine* engine)
 
     // Parse and set optional limit argument which limits the number of available players to show.
     int limit = 10; // default
-    int* limit_arg = get_arg_int();
-    if (limit_arg)
-    {
-        limit = (*limit_arg > 0) ? *limit_arg : limit;
-        free(limit_arg);
-    }
+    int limit_arg;
+    if (get_arg_int(&limit_arg) == 0)
+        limit = (limit_arg > 0) ? limit_arg : limit;
 
     PlayerRecord players[limit];
     int num_players = get_players_by_position(position, players, engine->config, limit);
@@ -421,22 +416,22 @@ static int bench(Engine* engine)
 static int give_pick(Engine* engine)
 {
 	int n_picks = get_number_of_picks(engine->config);
-    int* pick_num = get_arg_int();
-    if (!pick_num)
-        return runtime_error("give_pick requires a pick number argument.");
-    if (*pick_num > n_picks-1 || *pick_num < engine->state->pick)
-        return runtime_error("Cannot trade that pick.");
 
-    int* team_id = get_arg_int();
-    if (!team_id)
-        return runtime_error("give_pick requires a team_id argument.");
-    if (*team_id < 0 || *team_id > engine->config->num_teams-1)
-        return runtime_error("invalid team_id");
+    int pick_num;
+    if (get_arg_int(&pick_num) < 0)
+        return arg_error("give_pick requires a pick number argument.");
+    if (pick_num > n_picks-1 || pick_num < engine->state->pick)
+        return arg_error("Cannot trade that pick.");
 
-    assign_pick(*pick_num, *team_id);
+    int team_id;
+    if (get_arg_int(&team_id) < 0)
+        return arg_error("give_pick requires a team_id argument.");
+    if (team_id < 0 || team_id > engine->config->num_teams-1)
+        return arg_error("invalid team_id");
 
-    free(pick_num);
-    free(team_id);
+    assign_pick(pick_num, team_id);
+
+    return 0;
 }
 
 static int save(const Engine* engine)
@@ -530,7 +525,10 @@ static int load_draft_config(Engine* engine)
 
     const DraftConfig* new_config = load_config(filename);
     if (!new_config)
+    {
+        free(new_config);
         return runtime_error("Failed to load configuration file.");
+    }
 
     // Loading a new configuration requires us to reset the draftstate
     if (engine->state)
@@ -591,15 +589,14 @@ static char* get_arg_str()
     return strtok(NULL, ARG_DELIM);
 }
 
-static int* get_arg_int()
+static int get_arg_int(int* buf)
 {
     const char* arg = get_arg_str();
     if (!arg)
-        return NULL;
+        return -1;
 
-    int* int_arg = malloc(sizeof(int));
-    *int_arg = strtol(arg, NULL, 10);
-    return int_arg;
+    *buf = strtol(arg, NULL, 10);
+    return 0;
 }
 
 static int arg_error(const char* err_message)
