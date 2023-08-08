@@ -18,7 +18,7 @@ typedef struct DraftState
 typedef struct Engine
 {
     DraftState* state;
-    DraftConfig* config;
+    const DraftConfig* config;
     int think_time;
 } Engine;
 

@@ -177,6 +177,23 @@ const PlayerRecord* get_player_by_name(const char* name)
     return NULL;
 }
 
+int get_number_players_at_position(
+        const char* position,
+        const DraftConfig* config)
+{
+    int count = 0;
+    const PlayerRecord* player = players_begin();
+    for (; player != players_end(); player = players_next())
+    {
+        const Slot* slot = slot_from_position_code(player->position, config);
+        if (!slot) continue;
+        if (strcmp(slot->name, position) == 0)
+            count++;
+    }
+    
+    return count;
+}
+
 int get_players_by_position(
         const char* position,
         PlayerRecord players[],

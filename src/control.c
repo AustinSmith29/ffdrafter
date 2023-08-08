@@ -147,7 +147,7 @@ void destroy_engine(Engine* engine)
     if (engine->state)
         destroy_draftstate(engine->state, engine->config);
     if (engine->config)
-        free(engine->config);
+        free((DraftConfig*)engine->config);
     destroy_players();
 }
 
@@ -373,12 +373,18 @@ static int available(const Engine* engine)
     if (get_arg_int(&limit_arg) == 0)
         limit = (limit_arg > 0) ? limit_arg : limit;
 
-    PlayerRecord players[limit];
-    int num_players = get_players_by_position(position, players, engine->config, limit);
+    int num_players = get_number_players_at_position(position, engine->config);
+    PlayerRecord players[num_players];
+    get_players_by_position(position, players, engine->config, num_players);
 
     for (int i = 0; i < num_players; i++)
     {
-        fprintf(stdout, "%s\n", players[i].name);
+        if (!is_taken(players[i].id, engine->state->taken, engine->state->pick))
+        {
+            fprintf(stdout, "%s\n", players[i].name);
+            if (--limit <= 0)
+                break;
+        }
     }
 
     return 0;
@@ -526,7 +532,7 @@ static int load_draft_config(Engine* engine)
     const DraftConfig* new_config = load_config(filename);
     if (!new_config)
     {
-        free(new_config);
+        free((DraftConfig*)new_config);
         return runtime_error("Failed to load configuration file.");
     }
 
