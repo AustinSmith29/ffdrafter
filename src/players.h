@@ -38,6 +38,12 @@ const PlayerRecord* whos_highest_projected(
 const PlayerRecord* get_player_by_id(unsigned int player_id);
 const PlayerRecord* get_player_by_name(const char* name);
 
+// Returns the number of loaded players that match the passed position.
+int get_number_players_at_position(
+        const char* position,
+        const struct DraftConfig* config
+);
+
 // Puts up to {limit} players into the passed players array for players that match the passed position.
 // Returns the number of players that were copied into the array.
 int get_players_by_position(

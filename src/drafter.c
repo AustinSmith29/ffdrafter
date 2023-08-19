@@ -177,8 +177,7 @@ const PlayerRecord* calculate_best_pick(
         }
     } 
 
-	// Destroying context removes node so we have to copy which player
-	// it would have taken.
+    // Find player with highest score
 	double max = 0.0;
 	int child = 0;
 	int team = team_with_pick(pick);

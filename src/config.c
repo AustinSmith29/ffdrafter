@@ -137,11 +137,15 @@ int get_number_of_picks(const DraftConfig* config)
 	return players_per_team * config->num_teams;
 }
 
+void assign_pick(int pick, int team)
+{
+    SNAKE_DRAFT_PICKS[pick] = team;
+}
+
 int team_with_pick(int pick)
 {
 	return SNAKE_DRAFT_PICKS[pick];
 }
-
 
 void destroy_players()
 {
